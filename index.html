@@ -3,17 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Focus Tracker (MediaPipe Integrated)</title>
+    <title>Focus Tracker Simulation (Fixed Parameters)</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load Inter font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
     <!-- Load Phosphor Icons for a clean UI look -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    
-    <!-- FIX: Load MediaPipe Tasks using the standard module index for correct global exposure -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/tasks-vision/index.js"></script>
-
     <style>
         :root {
             font-family: 'Inter', sans-serif;
@@ -31,832 +27,513 @@
         .video-container {
             position: relative;
             width: 100%;
-            padding-top: 75%; /* 4:3 Aspect Ratio for display */
+            padding-top: 75%; /* 4:3 Aspect Ratio for simulation */
             background-color: #1f2937;
             border-radius: 0.75rem;
             overflow: hidden;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: #9ca3af; /* gray-400 */
         }
-        #video, #overlayCanvas {
+        .video-container video {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transform: scaleX(-1); /* Mirror the video for self-view */
-        }
-        #overlayCanvas {
-            z-index: 10;
+            border-radius: 0.75rem;
+            transform: scaleX(-1); /* Mirror the video */
         }
         .metric-card {
-            background-color: #111827;
-            border: 1px solid #374151;
-        }
-        .data-log-item:nth-child(odd) {
             background-color: #1f2937;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
         }
-        .data-log-item:nth-child(even) {
-            background-color: #111827;
+        .log-entry {
+            border-bottom: 1px solid #374151; /* gray-700 */
         }
-        .feedback-pulse {
-            animation: pulse-border 1.5s infinite;
+        .log-entry:last-child {
+            border-bottom: none;
         }
-
-        @keyframes pulse-border {
-            0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4); }
-            70% { box-shadow: 0 0 0 6px rgba(79, 70, 229, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
-        }
-        
-        /* New: Tooltip for Chart Hover */
-        #chartTooltip {
-            position: absolute;
-            background: rgba(4, 4, 10, 0.9);
-            color: #fff;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 0.8rem;
-            pointer-events: none;
-            z-index: 50;
-            transition: opacity 0.1s;
-            white-space: nowrap;
+        .log-scroll-area {
+            max-height: 400px;
+            overflow-y: auto;
         }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen p-4 md:p-8">
+<body class="bg-gray-900 text-gray-100 p-4 lg:p-10">
 
     <header class="mb-8">
-        <h1 class="text-4xl font-extrabold text-indigo-400">Focus Tracker (MediaPipe)</h1>
-        <p class="text-gray-400 mt-1">Real-Time Cognitive State Analysis using Computer Vision</p>
+        <h1 class="text-4xl font-extrabold text-indigo-400 tracking-tight">Cognitive Focus Dashboard</h1>
+        <p class="text-gray-400 mt-2">Simulated real-time coaching for attention and presence during work.</p>
     </header>
 
-    <div id="app" class="dashboard-grid">
-        <!-- Main Tracking Area & Metrics -->
+    <div class="dashboard-grid">
+        <!-- Main Content Area (Video, Controls, Metrics) -->
         <div>
+            <!-- Video Feed and Status -->
             <div class="video-container mb-6">
-                <video id="video" autoplay playsinline muted></video>
-                <canvas id="overlayCanvas"></canvas>
-                <div id="cameraStatus" class="absolute top-4 left-4 z-20 text-sm font-medium px-3 py-1 rounded-full bg-red-600 text-white">Camera Off</div>
-            </div>
-
-            <div id="metrics" class="p-6 bg-gray-800 rounded-xl shadow-lg">
-                <h2 class="text-2xl font-semibold mb-4 border-b border-gray-700 pb-2 flex items-center">
-                    <i class="ph-brain text-green-400 mr-2"></i> Cognitive State Analysis
-                </h2>
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div class="metric-card p-4 rounded-lg">
-                        <p class="text-xs text-gray-400">Gaze Stability Index (GSI)</p>
-                        <p id="gazeStability" class="text-3xl font-bold text-yellow-400 mt-1">--%</p>
-                        <p class="text-xs text-gray-500">Based on Face/Eye Movement</p>
-                    </div>
-                    <div class="metric-card p-4 rounded-lg">
-                        <p class="text-xs text-gray-400">Hand/Gesture Activity</p>
-                        <p id="emotionalState" class="text-xl font-bold text-blue-400 mt-2">N/A</p>
-                        <p class="text-xs text-gray-500">Based on Hand Movement</p>
-                    </div>
-                    <div class="metric-card p-4 rounded-lg">
-                        <p class="text-xs text-gray-400">Posture Deviation</p>
-                        <p id="postureDeviation" class="text-xl font-bold text-pink-400 mt-2">N/A</p>
-                        <p class="text-xs text-gray-500">Based on Shoulder/Head Position</p>
-                    </div>
-                    <div class="metric-card p-4 rounded-lg">
-                        <p id="overallScoreLabel" class="text-xs text-gray-400">Overall Focus Index</p>
-                        <p id="overallScore" class="text-3xl font-bold text-indigo-400 mt-1">--</p>
-                        <p class="text-xs text-gray-500">Final Weighted Engagement Score</p>
-                    </div>
+                <video id="webcamFeed" autoplay playsinline></video>
+                <div id="videoPlaceholder" class="p-6 text-center">
+                    <i class="ph ph-video-camera text-5xl mb-3 text-gray-500"></i>
+                    <p class="text-lg font-medium text-gray-400">Waiting for camera access...</p>
+                    <p class="text-sm text-gray-500 mt-1" id="cameraErrorMsg">Press 'Start Tracking' to begin and grant permission.</p>
                 </div>
             </div>
-            
-            <!-- Contextual Coaching Feedback -->
-            <div id="coachingFeedback" class="p-4 bg-indigo-900/50 border border-indigo-700 text-indigo-300 rounded-lg mt-4 hidden flex items-start">
-                <i class="ph-sparkle text-xl mt-1 mr-3"></i>
-                <span id="feedbackText" class="text-sm font-medium">Loading models and setting up analysis pipeline...</span>
-            </div>
-            
-            <div id="statusMessage" class="text-center p-4 bg-blue-900/50 text-blue-300 rounded-lg mt-4 hidden">
-                Loading...
-            </div>
 
-            <div id="controls" class="mt-6 flex gap-4">
-                <button id="startButton" onclick="startTracking()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition duration-300 shadow-md flex items-center justify-center">
-                    <i class="ph-play-circle text-lg mr-2"></i> Start Tracking
+            <!-- Controls -->
+            <div class="flex space-x-4 mb-6">
+                <button id="startButton" class="px-6 py-3 rounded-xl font-semibold transition bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-700 disabled:cursor-not-allowed">
+                    <i class="ph ph-play-circle mr-2"></i> Start Tracking
                 </button>
-                <button id="stopButton" onclick="stopTracking()" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-xl transition duration-300 shadow-md flex items-center justify-center" disabled>
-                    <i class="ph-stop-circle text-lg mr-2"></i> Stop Session
+                <button id="stopButton" class="px-6 py-3 rounded-xl font-semibold transition bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed">
+                    <i class="ph ph-stop-circle mr-2"></i> Stop Tracking
                 </button>
             </div>
 
-            <!-- Real-Time Focus History Chart -->
-            <div class="bg-gray-800 p-6 rounded-xl shadow-lg mt-6 relative">
-                <h2 class="text-2xl font-semibold mb-4 border-b border-gray-700 pb-2 flex items-center">
-                    <i class="ph-chart-line text-yellow-400 mr-2"></i> Real-Time Focus History
-                </h2>
-                <!-- Canvas height set here for CSS container size -->
-                <canvas id="focusChartCanvas" class="w-full" width="600" height="200"></canvas>
-                <!-- Tooltip Container -->
-                <div id="chartTooltip" style="opacity: 0; visibility: hidden;"></div>
+            <!-- Real-time Status and Coaching -->
+            <div class="p-4 bg-gray-800 rounded-xl mb-6">
+                <div id="statusMessage" class="text-sm font-medium text-indigo-400 hidden"></div>
+                <div id="coachingFeedback" class="text-base text-yellow-300 mt-1 hidden"></div>
+            </div>
+
+            <!-- Metrics Grid -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="metric-card text-center">
+                    <p class="text-sm uppercase text-gray-400">Gaze Stability</p>
+                    <p id="gazeStability" class="text-3xl font-bold mt-1 text-green-400">--%</p>
+                </div>
+                <div class="metric-card text-center">
+                    <p class="text-sm uppercase text-gray-400">Emotional State</p>
+                    <p id="emotionalState" class="text-3xl font-bold mt-1 text-blue-400">N/A</p>
+                </div>
+                <div class="metric-card text-center">
+                    <p class="text-sm uppercase text-gray-400">Posture Dev.</p>
+                    <p id="postureDeviation" class="text-3xl font-bold mt-1 text-yellow-400">N/A</p>
+                </div>
+                <div class="metric-card text-center">
+                    <p class="text-sm uppercase text-gray-400">Overall Score</p>
+                    <p id="overallScore" class="text-3xl font-bold mt-1 text-indigo-400">--</p>
+                </div>
             </div>
         </div>
 
-        <!-- Session Data Log (In-Memory) -->
-        <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
-            <h2 class="text-2xl font-semibold mb-4 border-b border-gray-700 pb-2 flex items-center">
-                <i class="ph-list-bullets text-green-400 mr-2"></i> Session Log (High Scores)
-            </h2>
-            <div id="logList" class="max-h-96 overflow-y-auto rounded-lg border border-gray-700">
-                <p class="p-4 text-gray-400 text-center">Press Start to begin analyzing data.</p>
+        <!-- Sidebar Area (Log and Chart) -->
+        <div>
+            <!-- Trend Chart -->
+            <div class="metric-card mb-6">
+                <h2 class="text-lg font-semibold mb-3 text-gray-200">Focus Trend</h2>
+                <canvas id="focusChart" width="400" height="200"></canvas>
             </div>
-            <p class="text-xs text-gray-500 mt-4">Note: Log shows the last 40 most critical events/scores.</p>
+
+            <!-- Activity Log -->
+            <div class="metric-card">
+                <h2 class="text-lg font-semibold mb-3 text-gray-200">Activity Log</h2>
+                <div id="logList" class="log-scroll-area">
+                    <p class="p-4 text-gray-400 text-center">Press Start to begin logging data.</p>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Application Logic (MediaPipe, UI, and Analysis Engine) -->
+    <!-- Load Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
     <script>
-        // Ensure window.taskVision is available before destructuring
-        const { FilesetResolver, PoseLandmarker, FaceLandmarker, HandLandmarker, DrawingUtils } = 
-            window.MediaPipeTasksVision || { FilesetResolver: null, PoseLandmarker: null, FaceLandmarker: null, HandLandmarker: null, DrawingUtils: null };
+        // --- Configuration & Elements ---
+        const FAST_INTERVAL = 300; // ms for simulation updates
+        const SLOW_INTERVAL = 2000; // ms for coaching feedback
 
-        // --- Core Application State ---
-        let videoStream = null;
-        let isTracking = false;
-        let sessionLog = []; 
-        let lastVideoTime = -1;
+        const webcamFeed = document.getElementById('webcamFeed');
+        const videoPlaceholder = document.getElementById('videoPlaceholder');
+        const cameraErrorMsg = document.getElementById('cameraErrorMsg');
 
-        // --- MediaPipe Services ---
-        let poseLandmarker = null;
-        let faceLandmarker = null;
-        let handLandmarker = null;
-        let drawingUtils = null;
-
-        // --- UI Element References ---
-        const videoElement = document.getElementById('video');
-        const canvasElement = document.getElementById('overlayCanvas');
-        const ctx = canvasElement.getContext('2d');
-        const cameraStatus = document.getElementById('cameraStatus');
         const startButton = document.getElementById('startButton');
         const stopButton = document.getElementById('stopButton');
         const statusMessageEl = document.getElementById('statusMessage');
+        const coachingFeedbackEl = document.getElementById('coachingFeedback');
         const logListEl = document.getElementById('logList');
-        const chartCanvas = document.getElementById('focusChartCanvas');
-        const chartCtx = chartCanvas.getContext('2d');
-        const chartTooltipEl = document.getElementById('chartTooltip');
 
-        // Metric UI elements
         const gazeStabilityEl = document.getElementById('gazeStability');
         const emotionalStateEl = document.getElementById('emotionalState');
         const postureDeviationEl = document.getElementById('postureDeviation');
         const overallScoreEl = document.getElementById('overallScore');
-        const coachingFeedbackEl = document.getElementById('coachingFeedback');
-        const feedbackTextEl = document.getElementById('feedbackText');
         
-        // --- CONSTANTS ---
-        const FAST_INTERVAL = 300; // Log update rate in milliseconds
-        const CHART_MAX_POINTS = 100;
-        let lastAnalysisTimestamp = 0;
+        // --- State Management ---
+        let isTracking = false;
+        let trackingInterval = null;
+        let coachingInterval = null;
+        let dataLog = [];
+        let focusChart = null;
+        let webcamStream = null;
 
-
-        // --- UTILITY FUNCTIONS ---
+        // --- Utility Functions ---
 
         /**
-         * Calculates the angle between three 3D points.
-         * Used for posture (shoulder, elbow, head tilt).
+         * Converts a numerical score (0-100) to a qualitative state.
+         * @param {number} score 
+         * @returns {string}
          */
-        function calculateAngle(A, B, C) {
-            const V_BA = [A.x - B.x, A.y - B.y, A.z - B.z];
-            const V_BC = [C.x - B.x, C.y - B.y, C.z - B.z];
-
-            const dotProduct = V_BA[0] * V_BC[0] + V_BA[1] * V_BC[1] + V_BA[2] * V_BC[2];
-            const magnitude_BA = Math.sqrt(V_BA[0] ** 2 + V_BA[1] ** 2 + V_BA[2] ** 2);
-            const magnitude_BC = Math.sqrt(V_BC[0] ** 2 + V_BC[1] ** 2 + V_BC[2] ** 2);
-
-            if (magnitude_BA === 0 || magnitude_BC === 0) return 180;
-
-            let angleRad = Math.acos(dotProduct / (magnitude_BA * magnitude_BC));
-            return angleRad * (180 / Math.PI); // Convert to degrees
+        function getQualitativeState(score) {
+            if (score > 80) return 'Highly Focused';
+            if (score > 60) return 'Focused';
+            if (score > 40) return 'Distracted';
+            return 'Severely Distracted';
         }
 
         /**
-         * Calculates the distance between two 3D points.
+         * Converts a numerical score to a Tailwind color class.
+         * @param {number} score 
+         * @returns {string}
          */
-        function calculateDistance(A, B) {
-            return Math.sqrt((A.x - B.x) ** 2 + (A.y - B.y) ** 2 + (A.z - B.z) ** 2);
+        function scoreToColor(score) {
+            if (score > 75) return 'text-green-400';
+            if (score > 50) return 'text-yellow-400';
+            return 'text-red-400';
         }
 
-        // --- MEDIA PIPE MODEL SETUP ---
-
-        async function createLandmarkers() {
-            // Guard clause if MediaPipe objects are not loaded correctly
-            if (!FilesetResolver) {
-                statusMessageEl.textContent = "FATAL: Could not load MediaPipe tasks. Please check network connection.";
-                statusMessageEl.classList.remove('hidden');
-                coachingFeedbackEl.classList.add('hidden');
-                startButton.disabled = true;
-                return;
-            }
-
-            statusMessageEl.textContent = "Loading MediaPipe models...";
-            statusMessageEl.classList.remove('hidden');
-            coachingFeedbackEl.classList.remove('hidden');
-
-            const filesetResolver = await FilesetResolver.forVisionTasks(
-                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
-            );
-
-            // 1. POSE for Posture
-            poseLandmarker = await PoseLandmarker.create(filesetResolver, {
-                baseOptions: {
-                    modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`,
-                    delegate: "GPU"
-                },
-                runningMode: "VIDEO",
-                numFaces: 1
-            });
-            
-            // 2. HANDS for Hand Activity/Gestures
-             handLandmarker = await HandLandmarker.create(filesetResolver, {
-                baseOptions: {
-                    modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker_lite/float16/1/hand_landmarker_lite.task`,
-                    delegate: "GPU"
-                },
-                runningMode: "VIDEO",
-                numHands: 2
-            });
-            
-            // 3. FACE for Gaze/Emotion
-             faceLandmarker = await FaceLandmarker.create(filesetResolver, {
-                baseOptions: {
-                    modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
-                    delegate: "GPU"
-                },
-                runningMode: "VIDEO",
-                numFaces: 1,
-                outputFaceBlendshapes: true
-            });
-
-            drawingUtils = new DrawingUtils(ctx);
-            statusMessageEl.textContent = "Models loaded successfully. Ready to start.";
+        /**
+         * Converts a numerical score to a coaching tip.
+         * @param {number} score 
+         * @returns {string}
+         */
+        function getCoachingTip(score) {
+            if (score > 85) return 'Great job! Maintain your current focus level.';
+            if (score > 65) return 'You are doing well, but try to minimize minor distractions.';
+            if (score > 45) return 'Consider taking a 2-minute break and resetting your posture.';
+            return 'High distraction detected. Please re-engage or change tasks.';
         }
 
-        // --- REAL-TIME ANALYSIS LOGIC ---
+        /**
+         * Simulates fetching random metric data.
+         */
+        function getSimulatedMetrics() {
+            // Introduce a bias towards "focused" but with random spikes/drops
+            const baseGaze = Math.max(50, 70 + (Math.random() - 0.5) * 40);
+            const basePosture = Math.min(100, 80 + (Math.random() - 0.5) * 30);
+            
+            const gaze = Math.round(baseGaze + (Math.random() - 0.5) * 10);
+            const posture = Math.round(100 - (100 - basePosture) / 2 - (Math.random() * 10));
 
-        function analyzeData(poseResults, handResults, faceResults) {
-            let gazeStability = 0;
-            let handActivity = 'Stationary/Idle';
-            let postureDeviation = 'Optimal';
-            let overallScore = 0;
+            const overall = Math.round((gaze * 0.6) + (posture * 0.4));
 
-            // --- 1. POSTURE ANALYSIS (Using Pose) ---
-            if (poseResults.landmarks.length > 0) {
-                const landmarks = poseResults.landmarks[0];
-                const L_SHOULDER = landmarks[11];
-                const R_SHOULDER = landmarks[12];
-                const NOSE = landmarks[0];
-                
-                // Calculate shoulder vertical alignment (Z-axis offset)
-                const shoulderDistanceZ = Math.abs(L_SHOULDER.z - R_SHOULDER.z);
-                
-                // Calculate neck-to-shoulder angle (forward lean)
-                // Using hip as the "center" of the torso (landmark 24 or 23)
-                const CENTER_HIP = landmarks[24] || landmarks[23];
-                if (CENTER_HIP) {
-                    const neckAngle = calculateAngle(NOSE, R_SHOULDER, CENTER_HIP);
-                    if (neckAngle < 160) {
-                        postureDeviation = 'Leaning Forward (Poor)';
-                        overallScore -= 15;
-                    } else if (shoulderDistanceZ > 0.1) { // 10% relative difference in depth
-                        postureDeviation = 'Slouching/Uneven';
-                        overallScore -= 10;
-                    } else {
-                        postureDeviation = 'Optimal';
-                        overallScore += 10;
-                    }
-                }
-            } else {
-                 postureDeviation = 'Body Not Detected';
-            }
-
-
-            // --- 2. HAND ACTIVITY ANALYSIS (Using Hands) ---
-            if (handResults.landmarks.length > 0) {
-                const hands = handResults.landmarks.length;
-                let wristMovement = 0; 
-                
-                // Simple gesture detection: Check for hands near the face (distraction)
-                // Check distance between wrist (0) and nose (from pose) or cheek (from face)
-                if (faceResults.landmarks.length > 0) {
-                    const NOSE_LANDMARK = faceResults.landmarks[0][4]; // Placeholder landmark for face center
-                    const WRIST_L = handResults.landmarks[0][0];
-
-                    if (calculateDistance(NOSE_LANDMARK, WRIST_L) < 0.2) { // Normalized distance threshold
-                         handActivity = `Distracting Gesture (${hands} hands)`;
-                         overallScore -= 15;
-                    } else {
-                        handActivity = `Active / Working (${hands} hands)`;
-                        overallScore += 5;
-                    }
-                } else {
-                    handActivity = `Active / Working (${hands} hands)`;
-                    overallScore += 5;
-                }
-            }
-
-
-            // --- 3. GAZE STABILITY (Using Face Mesh) ---
-            if (faceResults.faceBlendshapes.length > 0) {
-                // Focus on eye and head stability
-                const faceLandmarks = faceResults.landmarks[0];
-                
-                // Gaze Stability Index (Simplistic: based on head rotation blendshapes)
-                const pitch = faceResults.faceBlendshapes[0].categories.find(c => c.categoryName === 'headLookUp').score 
-                             - faceResults.faceBlendshapes[0].categories.find(c => c.categoryName === 'headLookDown').score;
-
-                const yaw = faceResults.faceBlendshapes[0].categories.find(c => c.categoryName === 'headTurnLeft').score
-                          - faceResults.faceBlendshapes[0].categories.find(c => c.categoryName === 'headTurnRight').score;
-                          
-                // A large absolute value means high movement (low stability)
-                const headMovement = (Math.abs(pitch) + Math.abs(yaw)) / 2; 
-
-                // GSI is 100 - (Movement * Scaling Factor)
-                gazeStability = Math.round(Math.max(10, 100 - (headMovement * 100)));
-                overallScore += (gazeStability * 0.5);
-
-            } else {
-                gazeStability = 0;
-            }
-
-            // --- 4. FINAL SCORE CALCULATION ---
-            overallScore = Math.min(100, Math.max(0, Math.round(overallScore)));
-
-            if (gazeStability < 40) overallScore -= 20;
-
+            const emotionalStates = ['Neutral', 'Calm', 'Bored', 'Stressed'];
+            const emotionalState = emotionalStates[Math.floor(Math.random() * emotionalStates.length)];
+            
             return {
-                gazeStability: Math.min(100, Math.max(0, gazeStability)),
-                handActivity: handActivity,
-                postureDeviation: postureDeviation,
-                overallScore: Math.min(100, Math.max(0, overallScore))
+                gaze: Math.min(100, Math.max(0, gaze)),
+                posture: Math.min(100, Math.max(0, posture)),
+                emotionalState: emotionalState,
+                overall: Math.min(100, Math.max(0, overall))
             };
         }
 
-        // --- VISUALIZATION AND LOGGING ---
+        // --- Chart Functions ---
 
-        function drawOverlay(poseResults, handResults, faceResults) {
-            ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-
-            // Flip context back for drawing over the mirrored video
-            ctx.save();
-            ctx.scale(-1, 1);
-            ctx.translate(-canvasElement.width, 0);
-
-            // Draw Pose landmarks (simplified)
-            if (poseResults.landmarks.length > 0) {
-                drawingUtils.drawConnectors(
-                    poseResults.landmarks[0], PoseLandmarker.POSE_CONNECTIONS,
-                    { color: "#10B981", lineWidth: 3 } // Emerald green
-                );
-            }
-
-            // Draw Hand landmarks
-            if (handResults.landmarks.length > 0) {
-                handResults.landmarks.forEach(landmarks => {
-                    drawingUtils.drawConnectors(
-                        landmarks, HandLandmarker.HAND_CONNECTIONS,
-                        { color: "#FBBF24", lineWidth: 2 } // Amber yellow
-                    );
-                    drawingUtils.drawLandmarks(landmarks, { color: "#FBBF24", radius: 3 });
-                });
-            }
+        /**
+         * Initializes or re-renders the Chart.js focus trend chart.
+         */
+        function renderChart() {
+            const ctx = document.getElementById('focusChart').getContext('2d');
             
-            // Draw Face landmarks (simplified outline)
-             if (faceResults.landmarks.length > 0) {
-                drawingUtils.drawConnectors(
-                    faceResults.landmarks[0], FaceLandmarker.FACE_LANDMARKS_CONTOURS,
-                    { color: "#818CF8", lineWidth: 1 } // Indigo
-                );
+            if (focusChart) {
+                focusChart.destroy();
             }
 
-            ctx.restore();
+            const labels = dataLog.map((_, index) => index % 10 === 0 ? `T+${index * FAST_INTERVAL/1000}s` : '');
+            const dataPoints = dataLog.map(d => d.overall);
+
+            focusChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Overall Focus Score',
+                        data: dataPoints,
+                        borderColor: '#818cf8', // indigo-400
+                        backgroundColor: 'rgba(129, 140, 248, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            display: false,
+                        },
+                        y: {
+                            min: 0,
+                            max: 100,
+                            ticks: {
+                                color: '#9ca3af' // gray-400
+                            },
+                            grid: {
+                                color: '#374151' // gray-700
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
         }
 
-        function updateMetricsAndLog(metrics) {
-            const { gazeStability, handActivity, postureDeviation, overallScore } = metrics;
+        /**
+         * Updates the chart with new data points.
+         */
+        function updateChart() {
+            if (focusChart && dataLog.length > 0) {
+                const newIndex = dataLog.length - 1;
+                const newLabel = newIndex % 10 === 0 ? `T+${newIndex * FAST_INTERVAL/1000}s` : '';
+                
+                // Add new data point
+                focusChart.data.labels.push(newLabel);
+                focusChart.data.datasets[0].data.push(dataLog[newIndex].overall);
+
+                // Keep only the last 100 points
+                if (focusChart.data.labels.length > 100) {
+                    focusChart.data.labels.shift();
+                    focusChart.data.datasets[0].data.shift();
+                }
+
+                focusChart.update('none'); // Use 'none' for smooth update
+            }
+        }
+
+        // --- Core Tracking Logic ---
+
+        /**
+         * Updates all metrics, UI, logs data, and updates the chart.
+         */
+        function updateMetricsAndLog() {
+            if (!isTracking) return;
+
+            const metrics = getSimulatedMetrics();
+            const timestamp = new Date().toLocaleTimeString();
+            const logId = dataLog.length + 1;
 
             // 1. Update UI Metrics
-            gazeStabilityEl.textContent = `${gazeStability}%`;
-            gazeStabilityEl.className = `text-3xl font-bold mt-1 ${gazeStability >= 70 ? 'text-green-400' : gazeStability >= 40 ? 'text-yellow-400' : 'text-red-400'}`;
+            gazeStabilityEl.textContent = `${metrics.gaze}%`;
+            gazeStabilityEl.className = `text-3xl font-bold mt-1 ${scoreToColor(metrics.gaze)}`;
             
-            emotionalStateEl.textContent = handActivity;
-            emotionalStateEl.className = `text-xl font-bold mt-2 ${handActivity.includes('Distracting') ? 'text-orange-400' : 'text-blue-400'}`;
+            emotionalStateEl.textContent = metrics.emotionalState;
+            emotionalStateEl.className = 'text-3xl font-bold mt-1 text-blue-400';
             
-            postureDeviationEl.textContent = postureDeviation;
-            postureDeviationEl.className = `text-xl font-bold mt-2 ${postureDeviation === 'Optimal' ? 'text-pink-400' : 'text-red-600'}`;
+            postureDeviationEl.textContent = `${metrics.posture}%`;
+            postureDeviationEl.className = `text-3xl font-bold mt-1 ${scoreToColor(metrics.posture)}`;
 
-            overallScoreEl.textContent = overallScore;
-            overallScoreEl.className = `text-3xl font-bold mt-1 ${overallScore >= 70 ? 'text-indigo-400' : overallScore >= 40 ? 'text-yellow-400' : 'text-red-400'}`;
-            
-            // 2. Log Data to Session Array (high frequency for chart)
-            const logEntry = {
-                timestamp: Date.now(),
-                gazeStability: gazeStability,
-                handActivity: handActivity,
-                postureDeviation: postureDeviation,
-                overallScore: overallScore
-            };
-            sessionLog.unshift(logEntry); // Add to the front
-            sessionLog = sessionLog.slice(0, CHART_MAX_POINTS * 2); 
+            overallScoreEl.textContent = metrics.overall;
+            overallScoreEl.className = `text-3xl font-bold mt-1 ${scoreToColor(metrics.overall)}`;
 
-            // 3. Update Chart and Coaching
-            renderChart();
-            getCoachingFeedback(logEntry);
-            
-            // 4. Render Log List (only critical/distracting events)
-            if (postureDeviation !== 'Optimal' || handActivity.includes('Distracting') || overallScore < 40) {
-                 renderLogs();
-            }
-        }
-        
-        // --- Coaching Logic ---
-        let lastFeedbackTimestamp = 0;
-        const FEEDBACK_INTERVAL = 4000; 
+            // 2. Log Data
+            dataLog.push({ timestamp, overall: metrics.overall });
 
-        function getCoachingFeedback(latestLog) {
-            if (Date.now() - lastFeedbackTimestamp < FEEDBACK_INTERVAL) {
-                return;
-            }
-            lastFeedbackTimestamp = Date.now();
-            coachingFeedbackEl.classList.remove('hidden');
-            coachingFeedbackEl.classList.add('feedback-pulse');
-            setTimeout(() => coachingFeedbackEl.classList.remove('feedback-pulse'), 1000);
-
-            // Reset colors to default
-            coachingFeedbackEl.className = 'p-4 rounded-lg mt-4 flex items-start';
-            coachingFeedbackEl.classList.add('bg-indigo-900/50', 'text-indigo-300', 'border', 'border-indigo-700');
-
-
-            if (latestLog.overallScore < 40) {
-                coachingFeedbackEl.classList.remove('bg-indigo-900/50', 'text-indigo-300', 'border-indigo-700');
-                coachingFeedbackEl.classList.add('bg-red-900/50', 'text-red-300', 'border-red-700');
-                feedbackTextEl.textContent = "CRITICAL: Focus Index is dangerously low. Check your environment or take a quick break.";
-                return;
-            }
-
-            if (latestLog.postureDeviation !== 'Optimal') {
-                coachingFeedbackEl.classList.remove('bg-indigo-900/50', 'text-indigo-300', 'border-indigo-700');
-                coachingFeedbackEl.classList.add('bg-orange-900/50', 'text-orange-300', 'border-orange-700');
-                feedbackTextEl.textContent = `POSTURE WARNING: ${latestLog.postureDeviation}. Adjust your seat to maintain an upright position.`;
-                return;
-            }
-
-            if (latestLog.handActivity.includes('Distracting')) {
-                 coachingFeedbackEl.classList.remove('bg-indigo-900/50', 'text-indigo-300', 'border-indigo-700');
-                 coachingFeedbackEl.classList.add('bg-yellow-900/50', 'text-yellow-300', 'border-yellow-700');
-                feedbackTextEl.textContent = "DISTRACTION DETECTED: Hands are near the face or highly active. Re-center your attention on the screen!";
-                return;
-            }
-
-            if (latestLog.overallScore > 85) {
-                coachingFeedbackEl.classList.remove('bg-indigo-900/50', 'text-indigo-300', 'border-indigo-700');
-                coachingFeedbackEl.classList.add('bg-green-900/50', 'text-green-300', 'border-green-700');
-                feedbackTextEl.textContent = "EXCELLENT FOCUS: Maintaining high engagement across all metrics. Keep up the great work!";
-                return;
-            }
-            
-            feedbackTextEl.textContent = "Monitoring all streams. Focus is stable.";
-        }
-
-        function renderLogs() {
-            // Filter for high-impact events: low score, poor posture, or distraction
-            const criticalLog = sessionLog.filter(log => 
-                log.overallScore < 40 || 
-                log.postureDeviation !== 'Optimal' || 
-                log.handActivity.includes('Distracting')
-            ).slice(0, 40);
-
-
-            if (criticalLog.length === 0) {
-                logListEl.innerHTML = `<p class="p-4 text-gray-400 text-center">No critical events detected yet. Focus is stable.</p>`;
-                return;
-            }
-
-            logListEl.innerHTML = criticalLog.map(log => {
-                const date = new Date(log.timestamp).toLocaleTimeString();
-                const score = log.overallScore || 0;
-                let scoreColor = score >= 70 ? 'text-green-400' : score >= 40 ? 'text-yellow-400' : 'text-red-400';
-                let alertText = '';
-
-                if (log.postureDeviation !== 'Optimal') alertText = log.postureDeviation;
-                else if (log.handActivity.includes('Distracting')) alertText = 'Hand Distraction';
-                else if (score < 40) alertText = 'Critical Low Focus';
-                else alertText = 'Stable';
-
-
-                return `
-                    <div class="data-log-item p-3 border-b border-gray-700 last:border-b-0 flex justify-between items-center">
-                        <span class="text-sm font-mono text-gray-300">${date}</span>
-                        <span class="text-xs text-gray-500">${alertText}</span>
-                        <span class="font-bold text-lg ${scoreColor}">${score}%</span>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // --- CHART INTERACTIVITY (New Requirement) ---
-
-        function getChartCoordinates(score, index, dataLength, width, height, padding, stepX) {
-            const x = padding + index * stepX;
-            const y = height - padding - (height - 2 * padding) * (score / 100);
-            return { x, y };
-        }
-
-        function handleChartMouseMove(e) {
-            if (sessionLog.length < 2) {
-                chartTooltipEl.style.opacity = '0';
-                return;
-            }
-            
-            const rect = chartCanvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-
-            const dpr = window.devicePixelRatio || 1;
-            const width = chartCanvas.offsetWidth;
-            const height = chartCanvas.offsetHeight;
-            const padding = 15;
-            const data = sessionLog.slice(0, CHART_MAX_POINTS).reverse();
-            const stepX = (width - 2 * padding) / Math.max(1, data.length - 1); 
-            
-            let closestPoint = null;
-            let minDistance = 1000;
-            const hitTolerance = 15; // pixels
-
-            data.forEach((logEntry, index) => {
-                const { x, y } = getChartCoordinates(logEntry.overallScore, index, data.length, width, height, padding, stepX);
-                
-                // Calculate distance squared to save on Math.sqrt
-                const dist = (mouseX - x)**2 + (mouseY - y)**2;
-
-                if (dist < minDistance) {
-                    minDistance = dist;
-                    closestPoint = { ...logEntry, x, y };
-                }
-            });
-            
-            if (closestPoint && Math.sqrt(minDistance) < hitTolerance) {
-                const date = new Date(closestPoint.timestamp).toLocaleTimeString();
-                chartTooltipEl.innerHTML = `
-                    <span class="text-gray-400">${date}</span><br/>
-                    <span class="text-indigo-300 font-bold text-lg">${closestPoint.overallScore}%</span> Focus
-                `;
-                
-                // Position tooltip
-                let tooltipX = closestPoint.x + rect.left + 10;
-                let tooltipY = closestPoint.y + rect.top - chartTooltipEl.offsetHeight / 2;
-
-                // Keep tooltip on screen
-                if (tooltipX + chartTooltipEl.offsetWidth > window.innerWidth) {
-                    tooltipX = closestPoint.x + rect.left - chartTooltipEl.offsetWidth - 10;
-                }
-                
-                chartTooltipEl.style.left = `${tooltipX}px`;
-                chartTooltipEl.style.top = `${tooltipY}px`;
-                chartTooltipEl.style.opacity = '1';
-                chartTooltipEl.style.visibility = 'visible';
-
-                // Re-render chart to draw highlight circle
-                renderChart(closestPoint.x, closestPoint.y); 
-
+            // 3. Update Log List
+            const state = getQualitativeState(metrics.overall);
+            const newLogEntry = document.createElement('div');
+            newLogEntry.className = `log-entry py-2 text-sm flex justify-between items-center`;
+            newLogEntry.innerHTML = `
+                <span class="text-gray-400">${timestamp} #${logId}</span>
+                <span class="font-medium ${scoreToColor(metrics.overall)}">${state} (${metrics.overall})</span>
+            `;
+            // Add to top of the log list
+            if (logListEl.firstChild && logListEl.firstChild.tagName !== 'P') {
+                 logListEl.insertBefore(newLogEntry, logListEl.firstChild);
             } else {
-                chartTooltipEl.style.opacity = '0';
-                chartTooltipEl.style.visibility = 'hidden';
-                renderChart(); // Re-render without highlight
+                 logListEl.innerHTML = '';
+                 logListEl.appendChild(newLogEntry);
             }
+           
+            // 4. Update Chart
+            updateChart();
         }
 
-        function handleChartMouseOut() {
-            chartTooltipEl.style.opacity = '0';
-            chartTooltipEl.style.visibility = 'hidden';
-            renderChart();
+        /**
+         * Provides periodic coaching feedback based on the latest overall score.
+         */
+        function provideCoachingFeedback() {
+            if (!isTracking || dataLog.length === 0) return;
+            const latestScore = dataLog[dataLog.length - 1].overall;
+            const tip = getCoachingTip(latestScore);
+            
+            coachingFeedbackEl.textContent = `Coaching: ${tip}`;
+            coachingFeedbackEl.classList.remove('hidden');
         }
 
-        // --- CHART RENDERER ---
 
-        function renderChart(highlightX = null, highlightY = null) {
-            const dpr = window.devicePixelRatio || 1;
-            const styleWidth = chartCanvas.offsetWidth;
-            const styleHeight = chartCanvas.offsetHeight;
-            chartCanvas.width = styleWidth * dpr;
-            chartCanvas.height = styleHeight * dpr;
-            chartCtx.scale(dpr, dpr);
+        // --- Webcam Functions ---
+
+        /**
+         * Handles webcam initialization errors and updates the UI to inform the user.
+         * @param {Error} error 
+         */
+        function handleWebcamError(error) {
+            console.error('Webcam access error:', error);
+            videoPlaceholder.style.display = 'flex';
+            cameraErrorMsg.textContent = `Error: ${error.name}. Please ensure your camera is not in use and grant permission.`;
+            cameraErrorMsg.classList.add('text-red-400');
             
-            const width = styleWidth;
-            const height = styleHeight;
-            chartCtx.clearRect(0, 0, width, height);
-            
-            if (sessionLog.length < 2) {
-                chartCtx.fillStyle = '#4B5563';
-                chartCtx.textAlign = 'center';
-                chartCtx.font = '16px Inter, sans-serif';
-                chartCtx.fillText("Waiting for real-time data...", width / 2, height / 2);
+            // Re-enable start button for retry
+            startButton.disabled = false;
+            startButton.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+            startButton.classList.remove('bg-gray-700', 'cursor-not-allowed');
+
+            stopTracking();
+        }
+
+        /**
+         * Requests and sets up the webcam feed.
+         * @returns {Promise<void>}
+         */
+        async function setupWebcam() {
+            if (webcamStream) {
+                // Already running
                 return;
             }
 
-            const data = sessionLog.slice(0, CHART_MAX_POINTS).reverse();
-            const padding = 15;
-            const stepX = (width - 2 * padding) / Math.max(1, data.length - 1); 
-
-            // Reference Scores: 40 (Red) and 70 (Green)
-            const y40 = height - padding - (height - 2 * padding) * (40 / 100);
-            const y70 = height - padding - (height - 2 * padding) * (70 / 100);
-
-            // 1. Draw Grid Lines (Reference Scores)
-            chartCtx.lineWidth = 1;
-            chartCtx.setLineDash([5, 5]);
-
-            // Draw Critical (40)
-            chartCtx.strokeStyle = 'rgba(248, 113, 113, 0.5)'; // red-400
-            chartCtx.beginPath();
-            chartCtx.moveTo(padding, y40);
-            chartCtx.lineTo(width - padding, y40);
-            chartCtx.stroke();
-            
-            // Draw Target (70)
-            chartCtx.strokeStyle = 'rgba(74, 222, 128, 0.5)'; // green-400
-            chartCtx.beginPath();
-            chartCtx.moveTo(padding, y70);
-            chartCtx.lineTo(width - padding, y70);
-            chartCtx.stroke();
-            chartCtx.setLineDash([]); // Reset dash
-
-            // 2. Draw the Line Graph (Focus Score)
-            chartCtx.strokeStyle = '#818CF8'; // indigo-300
-            chartCtx.lineWidth = 3;
-            chartCtx.beginPath();
-
-            data.forEach((logEntry, index) => {
-                const { x, y } = getChartCoordinates(logEntry.overallScore, index, data.length, width, height, padding, stepX);
-
-                if (index === 0) {
-                    chartCtx.moveTo(x, y);
-                } else {
-                    chartCtx.lineTo(x, y);
-                }
-            });
-
-            chartCtx.stroke();
-
-            // 3. Draw highlight circle if provided by hover
-            if (highlightX !== null && highlightY !== null) {
-                chartCtx.fillStyle = '#C4B5FD'; // Light indigo
-                chartCtx.beginPath();
-                chartCtx.arc(highlightX, highlightY, 6, 0, Math.PI * 2);
-                chartCtx.fill();
-            }
-
-
-            // 4. Draw Axis Labels 
-            chartCtx.fillStyle = '#9CA3AF';
-            chartCtx.font = '10px Inter';
-            chartCtx.textAlign = 'right';
-            chartCtx.fillText('100', padding - 2, padding + 5);
-            chartCtx.fillText('50', padding - 2, height / 2 + 5);
-            chartCtx.fillText('0', padding - 2, height - padding);
-        }
-
-        // --- SESSION CONTROL ---
-
-        async function startCamera() {
             try {
+                // Request camera stream
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                videoElement.srcObject = stream;
-                videoStream = stream;
-                cameraStatus.textContent = 'Camera Active';
-                cameraStatus.classList.remove('bg-red-600');
-                cameraStatus.classList.add('bg-green-600');
-                videoElement.play();
+                webcamStream = stream;
+                webcamFeed.srcObject = stream;
+                await webcamFeed.play();
+                
+                // Hide placeholder and show video
+                videoPlaceholder.style.display = 'none';
 
-                videoElement.onloadeddata = () => {
-                    canvasElement.width = videoElement.videoWidth;
-                    canvasElement.height = videoElement.videoHeight;
-                    // Start the MediaPipe prediction loop
-                    predictWebcam(); 
-                };
-
-            } catch (err) {
-                console.error("Error accessing the camera: ", err);
-                cameraStatus.textContent = 'Camera Denied/Error';
-                cameraStatus.classList.remove('bg-green-600');
-                cameraStatus.classList.add('bg-red-600');
-                statusMessageEl.textContent = "FATAL: Camera access required to start tracking.";
+            } catch (error) {
+                handleWebcamError(error);
+                throw error; // Propagate error to startTracking
             }
         }
 
-        function stopCamera() {
-            if (videoStream) {
-                videoStream.getTracks().forEach(track => track.stop());
-                videoStream = null;
-                cameraStatus.textContent = 'Camera Off';
-                cameraStatus.classList.remove('bg-green-600');
-                cameraStatus.classList.add('bg-red-600');
-                ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-                chartCtx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+        /**
+         * Stops the webcam stream and releases the hardware.
+         */
+        function stopWebcam() {
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(track => track.stop());
+                webcamStream = null;
+                webcamFeed.srcObject = null;
             }
-        }
-        
-        // --- MEDIA PIPE PREDICTION LOOP (Replaces simple simulation interval) ---
-        async function predictWebcam() {
-            if (!isTracking) return;
-            if (!poseLandmarker || !handLandmarker || !faceLandmarker) {
-                console.error("Landmarkers not initialized.");
-                window.requestAnimationFrame(predictWebcam);
-                return;
-            }
-
-            // Resize canvas to video size
-            if (videoElement.videoWidth > 0) {
-                 canvasElement.width = videoElement.videoWidth;
-                 canvasElement.height = videoElement.videoHeight;
-            }
-
-            let startTimeMs = performance.now();
-
-            // Run detection on the video frame
-            if (videoElement.currentTime !== lastVideoTime) {
-                 const poseResults = poseLandmarker.detectForVideo(videoElement, startTimeMs);
-                 const handResults = handLandmarker.detectForVideo(videoElement, startTimeMs);
-                 const faceResults = faceLandmarker.detectForVideo(videoElement, startTimeMs);
-
-                 lastVideoTime = videoElement.currentTime;
-
-                 // Only run full analysis at the desired FAST_INTERVAL (300ms)
-                 if (Date.now() - lastAnalysisTimestamp > FAST_INTERVAL) {
-                    const metrics = analyzeData(poseResults, handResults, faceResults);
-                    updateMetricsAndLog(metrics);
-                    lastAnalysisTimestamp = Date.now();
-                 }
-
-                 drawOverlay(poseResults, handResults, faceResults);
-            }
-
-            // Continue the loop
-            window.requestAnimationFrame(predictWebcam);
+            // Show placeholder
+            videoPlaceholder.style.display = 'flex';
+            cameraErrorMsg.textContent = "Tracking stopped. Press 'Start Tracking' to restart.";
+            cameraErrorMsg.classList.remove('text-red-400');
         }
 
-        window.startTracking = async function() {
+
+        // --- Control Functions ---
+
+        /**
+         * Initiates the tracking simulation.
+         */
+        async function startTracking() {
             if (isTracking) return;
 
-            if (!poseLandmarker) {
-                statusMessageEl.textContent = "Models are still loading. Please wait...";
-                return;
-            }
-
-            isTracking = true;
-            sessionLog = []; 
-            renderLogs();
-            
+            // Disable start button, enable stop button
             startButton.disabled = true;
-            stopButton.disabled = false;
+            stopButton.disabled = true; // Wait for webcam to confirm success
             startButton.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
             startButton.classList.add('bg-gray-700', 'cursor-not-allowed');
+
+            statusMessageEl.textContent = "Requesting camera permission...";
             statusMessageEl.classList.remove('hidden');
-            statusMessageEl.textContent = "Initiating camera and real-time analysis...";
-            
-            await startCamera();
+
+
+            try {
+                await setupWebcam();
+                
+                // Camera setup successful, now start simulation
+                isTracking = true;
+                dataLog = [];
+                logListEl.innerHTML = '';
+                renderChart();
+
+                // Set up intervals
+                if (trackingInterval) clearInterval(trackingInterval);
+                trackingInterval = setInterval(updateMetricsAndLog, FAST_INTERVAL);
+                updateMetricsAndLog(); // Initial run immediately
+
+                if (coachingInterval) clearInterval(coachingInterval);
+                coachingInterval = setInterval(provideCoachingFeedback, SLOW_INTERVAL);
+                
+                statusMessageEl.textContent = "Simulation running. Monitoring cognitive state.";
+                stopButton.disabled = false;
+                stopButton.classList.add('bg-red-600', 'hover:bg-red-700');
+                stopButton.classList.remove('bg-gray-700', 'cursor-not-allowed');
+
+            } catch (e) {
+                // Error handled in handleWebcamError, UI reset there.
+                console.error("Failed to start tracking:", e);
+                // The handleWebcamError already manages the button state and message
+            }
         }
 
-        window.stopTracking = function() {
-            if (!isTracking) return;
+        /**
+         * Stops the tracking simulation.
+         */
+        function stopTracking() {
             isTracking = false;
-            stopCamera();
-            // We rely on 'isTracking' flag to stop the requestAnimationFrame loop
+
+            // Clear intervals
+            if (trackingInterval) {
+                clearInterval(trackingInterval);
+                trackingInterval = null;
+            }
+            if (coachingInterval) {
+                clearInterval(coachingInterval);
+                coachingInterval = null;
+            }
             
-            statusMessageEl.classList.add('hidden');
+            stopWebcam(); // Release the camera
+
+            // Reset UI state
+            statusMessageEl.textContent = "Tracking stopped.";
             coachingFeedbackEl.classList.add('hidden');
 
             startButton.disabled = false;
             stopButton.disabled = true;
             startButton.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
             startButton.classList.remove('bg-gray-700', 'cursor-not-allowed');
+            stopButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+            stopButton.classList.add('bg-gray-700', 'cursor-not-allowed');
+
 
             // Reset UI metrics
             gazeStabilityEl.textContent = '--%';
+            gazeStabilityEl.className = 'text-3xl font-bold mt-1 text-green-400';
             emotionalStateEl.textContent = 'N/A';
             postureDeviationEl.textContent = 'N/A';
             overallScoreEl.textContent = '--';
             overallScoreEl.className = 'text-3xl font-bold mt-1 text-indigo-400';
             
-            renderChart();
-            logListEl.innerHTML = `<p class="p-4 text-gray-400 text-center">Press Start to begin analyzing data.</p>`;
+            // Re-render chart to show final data
+            renderChart(); 
         }
-        
-        // --- Initialization ---
+
+        // --- Event Listeners and Initialization ---
+
+        startButton.addEventListener('click', startTracking);
+        stopButton.addEventListener('click', stopTracking);
 
         window.onload = function() {
+            // Initial UI setup
             stopButton.disabled = true;
-            createLandmarkers();
+            stopButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+            stopButton.classList.add('bg-gray-700', 'cursor-not-allowed');
             renderChart(); 
-            // Add interactivity to the chart canvas
-            chartCanvas.addEventListener('mousemove', handleChartMouseMove);
-            chartCanvas.addEventListener('mouseout', handleChartMouseOut);
+            // Do NOT call setupWebcam here; it requires a user action (click) for a smooth permission flow.
         }
     </script>
 </body>
