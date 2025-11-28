@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Focus Tracker Simulation (Fixed Parameters)</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Inter font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <!-- Load Phosphor Icons for a clean UI look -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        :root {
+            font-family: 'Inter', sans-serif;
+        }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 3fr 1fr;
+            gap: 1.5rem;
+        }
+        @media (max-width: 1024px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            padding-top: 75%; /* 4:3 Aspect Ratio for simulation */
+            background-color: #1f2937;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        #video, #overlayCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror the video for self-view */
+        }
+        #overlayCanvas {
+            z-index: 10;
+            pointer-events: none;
+        }
+        .metric-card {
+            background-color: #111827;
+            border: 1px solid #374151;
+        }
+        .data-log-item:nth-child(odd) {
+            background-color: #1f2937;
+        }
+        .data-log-item:nth-child(even) {
+            background-color: #111827;
+        }
+        /* Style for the fast-updating feedback */
+        .feedback-pulse {
+            animation: pulse-border 1.5s infinite;
+        }
+
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(79, 70, 229, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-4 md:p-8">
+
+    <header class="mb-8">
+        <h1 class="text-4xl font-extrabold text-indigo-400">Focus Tracker Simulation</h1>
+        <p class="text-gray-400 mt-1">Real-Time Cognitive State Analysis (Client-Side Only)</p>
+    </header>
+
+    <div id="app" class="dashboard-grid">
+        <!-- Main Tracking Area & Simulated Metrics -->
+        <div>
+            <div class="video-container mb-6">
+                <video id="video" autoplay playsinline muted></video>
+                <canvas id="overlayCanvas"></canvas>
+                <div id="cameraStatus" class="absolute top-4 left-4 z-20 text-sm font-medium px-3 py-1 rounded-full bg-red-600 text-white">Camera Off</div>
+            </div>
+
+            <div id="metrics" class="p-6 bg-gray-800 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-semibold mb-4 border-b border-gray-700 pb-2 flex items-center">
+                    <i class="ph-brain text-green-400 mr-2"></i> Cognitive State Simulation
+                </h2>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="metric-card p-4 rounded-lg">
+                        <p class="text-xs text-gray-400">Gaze Stability Index (GSI)</p>
+                        <p id="gazeStability" class="text-3xl font-bold text-yellow-400 mt-1">--%</p>
+                        <p class="text-xs text-gray-500">Simulated Eye Movement / Zoning Out</p>
+                    </div>
+                    <div class="metric-card p-4 rounded-lg">
+                        <p class="text-xs text-gray-400">Emotional State</p>
+                        <p id="emotionalState" class="text-xl font-bold text-blue-400 mt-2">N/A</p>
+                        <p class="text-xs text-gray-500">Simulated Affective Display</p>
+                    </div>
+                    <div class="metric-card p-4 rounded-lg">
+                        <p class="text-xs text-gray-400">Posture Deviation</p>
+                        <p id="postureDeviation" class="text-xl font-bold text-pink-400 mt-2">N/A</p>
+                        <p class="text-xs text-gray-500">Simulated Body Position</p>
+                    </div>
+                    <div class="metric-card p-4 rounded-lg">
+                        <p id="overallScoreLabel" class="text-xs text-gray-400">Overall Focus Index</p>
+                        <p id="overallScore" class="text-3xl font-bold text-indigo-400 mt-1">--</p>
+                        <p class="text-xs text-gray-500">Final Weighted Engagement Score</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Contextual Coaching Feedback -->
+            <div id="coachingFeedback" class="p-4 bg-indigo-900/50 border border-indigo-700 text-indigo-300 rounded-lg mt-4 hidden flex items-start">
+                <i class="ph-sparkle text-xl mt-1 mr-3"></i>
+                <span id="feedbackText" class="text-sm font-medium">Monitoring your session for personalized insights...</span>
+            </div>
+            
+            <!-- The simulation controls section has been removed -->
+
+            <div id="statusMessage" class="text-center p-4 bg-blue-900/50 text-blue-300 rounded-lg mt-4 hidden">
+                Simulation running...
+            </div>
+
+            <div id="controls" class="mt-6 flex gap-4">
+                <button id="startButton" onclick="startTracking()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition duration-300 shadow-md flex items-center justify-center">
+                    <i class="ph-play-circle text-lg mr-2"></i> Start Tracking
+                </button>
+                <button id="stopButton" onclick="stopTracking()" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-xl transition duration-300 shadow-md flex items-center justify-center" disabled>
+                    <i class="ph-stop-circle text-lg mr-2"></i> Stop Session
+                </button>
+            </div>
+
+            <!-- Real-Time Focus History Chart -->
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg mt-6">
+                <h2 class="text-2xl font-semibold mb-4 border-b border-gray-700 pb-2 flex items-center">
+                    <i class="ph-chart-line text-yellow-400 mr-2"></i> Real-Time Focus History
+                </h2>
+                <!-- Canvas height set here for CSS container size -->
+                <canvas id="focusChartCanvas" class="w-full" width="600" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Session Data Log (In-Memory) -->
+        <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-semibold mb-4 border-b border-gray-700 pb-2 flex items-center">
+                <i class="ph-list-bullets text-green-400 mr-2"></i> Session Log (In-Memory)
+            </h2>
+            <div id="logList" class="max-h-96 overflow-y-auto rounded-lg border border-gray-700">
+                <p class="p-4 text-gray-400 text-center">Press Start to begin logging data.</p>
+            </div>
+            <p class="text-xs text-gray-500 mt-4">Note: The log is less detailed to prioritize the chart's responsiveness.</p>
+        </div>
+    </div>
+
+    <!-- Application Logic (Camera, UI, and Simulation Engine) -->
+    <script>
+        // --- Core Application State ---
+        let videoStream = null;
+        let trackingInterval = null;
+        let isTracking = false;
+        let sessionLog = []; // Stores high-frequency data
+        let simulationStartTime = null;
+        
+        // --- FIXED SIMULATION PARAMETERS (Based on previous optimal tuning) ---
+        // These values were previously controlled by the sliders.
+        const FIXED_DISTRACTION_SENSITIVITY = 0.7; 
+        const FIXED_REENGAGEMENT_EFFORT = 1.5;
+        const FAST_INTERVAL = 300; // Update rate in milliseconds
+
+        // --- UI Element References ---
+        const videoElement = document.getElementById('video');
+        const canvasElement = document.getElementById('overlayCanvas');
+        const ctx = canvasElement.getContext('2d');
+        const cameraStatus = document.getElementById('cameraStatus');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const statusMessageEl = document.getElementById('statusMessage');
+        const logListEl = document.getElementById('logList');
+
+        // Metric UI elements
+        const gazeStabilityEl = document.getElementById('gazeStability');
+        const emotionalStateEl = document.getElementById('emotionalState');
+        const postureDeviationEl = document.getElementById('postureDeviation');
+        const overallScoreEl = document.getElementById('overallScore');
+        
+        // New UI references
+        const feedbackTextEl = document.getElementById('feedbackText');
+        const coachingFeedbackEl = document.getElementById('coachingFeedback');
+        const chartCanvas = document.getElementById('focusChartCanvas');
+        const chartCtx = chartCanvas.getContext('2d');
+
+        // --- Simulation Engine State ---
+        let simulationState = {
+            gsiBase: 90,
+            distractionEvent: false,
+            focusEvent: true
+        };
+
+        /**
+         * Generates simulated engagement metrics with aggressive tuning for speed.
+         * The core logic is volatile to match the 300ms update rate.
+         * @returns {Object} Simulated metrics.
+         */
+        function simulateAnalysis() {
+            const distractionSensitivity = FIXED_DISTRACTION_SENSITIVITY;
+            const reengagementEffort = FIXED_REENGAGEMENT_EFFORT;
+
+            // 1. Gaze Stability Index (GSI) Drift
+            if (simulationState.focusEvent) {
+                // AGGRESSIVE RECOVERY
+                simulationState.gsiBase = Math.min(95, simulationState.gsiBase + reengagementEffort * 0.5 + Math.random() * 0.5);
+                // Condition to lose focus is harder to meet
+                if (Math.random() * reengagementEffort < 0.2) simulationState.focusEvent = false; 
+            } else {
+                // AGGRESSIVE DECAY
+                simulationState.gsiBase = Math.max(25, simulationState.gsiBase - distractionSensitivity * 0.8 - Math.random() * 0.5);
+                // Condition to get distracted is easier to meet
+                if (Math.random() * distractionSensitivity > 0.4) simulationState.distractionEvent = true; 
+            }
+
+            if (simulationState.distractionEvent) {
+                // Simulate a sudden, sharp zoning out event (fast drop)
+                simulationState.gsiBase = Math.max(10, simulationState.gsiBase - 5 - Math.random() * 2);
+                // Re-engagement is checked aggressively
+                if (Math.random() * reengagementEffort > 1.2) {
+                    simulationState.distractionEvent = false;
+                    simulationState.focusEvent = true; // Snap back to focus mode
+                }
+            }
+
+            let gazeStability = Math.round(Math.min(100, simulationState.gsiBase + (Math.random() * 3 - 1.5)));
+            gazeStability = Math.max(10, gazeStability); // Min GSI 10
+
+            // 2. Emotional State & Posture Deviation
+            let emotionalState = 'Neutral/Focused';
+            let postureDeviation = 'Optimal';
+
+            if (gazeStability < 45) {
+                if (Math.random() < 0.6) { 
+                    emotionalState = 'Drowsy/Zoning Out';
+                    postureDeviation = 'Leaning Back';
+                } else if (Math.random() < 0.4) {
+                     emotionalState = 'Frustration/Confusion';
+                }
+            } else if (gazeStability > 90 && Math.random() < 0.05) { 
+                emotionalState = 'Smiling/Laughing';
+            }
+
+
+            // 3. Overall Focus Score (Weighted)
+            let overallScore = Math.round(gazeStability * 0.9 + (Math.random() * 5));
+
+            if (emotionalState === 'Drowsy/Zoning Out' || emotionalState === 'Frustration/Confusion') {
+                overallScore -= 10;
+            }
+
+            overallScore = Math.min(100, Math.max(0, overallScore));
+
+            return {
+                gazeStability: gazeStability,
+                emotionalState: emotionalState,
+                postureDeviation: postureDeviation,
+                overallScore: overallScore
+            };
+        }
+        
+        // --- Coaching Logic ---
+        let lastFeedbackTimestamp = 0;
+        const FEEDBACK_INTERVAL = 3000; // 3 seconds between checks
+
+        function getCoachingFeedback() {
+            if (!isTracking || Date.now() - lastFeedbackTimestamp < FEEDBACK_INTERVAL) {
+                return feedbackTextEl.textContent;
+            }
+            lastFeedbackTimestamp = Date.now();
+            coachingFeedbackEl.classList.add('feedback-pulse');
+            setTimeout(() => coachingFeedbackEl.classList.remove('feedback-pulse'), 1000);
+
+
+            // Check the last 15 entries (15 * 300ms = 4.5 seconds)
+            const recentLogs = sessionLog.slice(0, 15);
+            if (recentLogs.length < 5) return "Monitoring your session for personalized insights...";
+            
+            const lowScoreCount = recentLogs.filter(log => log.overallScore < 55).length;
+            const highScoreCount = recentLogs.filter(log => log.overallScore > 80).length;
+            const postureIssueCount = recentLogs.filter(log => log.postureDeviation !== 'Optimal').length;
+            const socialEmotionCount = recentLogs.filter(log => log.emotionalState.includes('Smiling') || log.emotionalState.includes('Laughing')).length;
+            
+            // Reset colors to default
+            coachingFeedbackEl.className = 'p-4 rounded-lg mt-4 flex items-start';
+            coachingFeedbackEl.classList.add('bg-indigo-900/50', 'text-indigo-300', 'border', 'border-indigo-700');
+
+
+            if (lowScoreCount >= 10) {
+                coachingFeedbackEl.classList.remove('bg-indigo-900/50', 'text-indigo-300', 'border-indigo-700');
+                coachingFeedbackEl.classList.add('bg-red-900/50', 'text-red-300', 'border-red-700');
+                return "CRITICAL ALERT: Your focus has been low for several seconds. Immediate action is needed. Maybe a quick walk?";
+            }
+
+            if (postureIssueCount >= 7) {
+                coachingFeedbackEl.classList.remove('bg-indigo-900/50', 'text-indigo-300', 'border-indigo-700');
+                coachingFeedbackEl.classList.add('bg-orange-900/50', 'text-orange-300', 'border-orange-700');
+                return "POSTURE WARNING: Maintain an upright position. Poor posture can contribute to fatigue.";
+            }
+
+            if (socialEmotionCount >= 5 && lowScoreCount < 5) {
+                 coachingFeedbackEl.classList.remove('bg-indigo-900/50', 'text-indigo-300', 'border-indigo-700');
+                 coachingFeedbackEl.classList.add('bg-yellow-900/50', 'text-yellow-300', 'border-yellow-700');
+                return "MOMENTARY DISTRACTION: High emotional activity detected. Quick non-task distraction? Re-center!";
+            }
+
+            if (highScoreCount >= 12) {
+                coachingFeedbackEl.classList.remove('bg-indigo-900/50', 'text-indigo-300', 'border-indigo-700');
+                coachingFeedbackEl.classList.add('bg-green-900/50', 'text-green-300', 'border-green-700');
+                return "EXCELLENT FOCUS: Maintaining high engagement. System performance is optimal!";
+            }
+            
+            return "Focus is stable. Minimal drift detected.";
+        }
+
+
+        // --- Chart Renderer ---
+
+        function renderChart() {
+            const dpr = window.devicePixelRatio || 1;
+            const styleWidth = chartCanvas.offsetWidth;
+            const styleHeight = chartCanvas.offsetHeight;
+            chartCanvas.width = styleWidth * dpr;
+            chartCanvas.height = styleHeight * dpr;
+            chartCtx.scale(dpr, dpr);
+            
+            const width = styleWidth;
+            const height = styleHeight;
+            chartCtx.clearRect(0, 0, width, height);
+            
+            if (sessionLog.length < 2) return;
+
+            const maxPoints = 100; 
+            const data = sessionLog.slice(0, maxPoints).map(log => log.overallScore).reverse();
+            const padding = 15;
+            const stepX = (width - 2 * padding) / Math.max(1, data.length - 1); 
+
+            // Reference Scores: 40 (Red) and 70 (Green)
+            const y40 = height - padding - (height - 2 * padding) * (40 / 100);
+            const y70 = height - padding - (height - 2 * padding) * (70 / 100);
+
+            // 1. Draw Grid Lines (Reference Scores)
+            chartCtx.lineWidth = 1;
+            chartCtx.setLineDash([5, 5]);
+
+            // Draw Critical (40)
+            chartCtx.strokeStyle = 'rgba(248, 113, 113, 0.5)'; // red-400
+            chartCtx.beginPath();
+            chartCtx.moveTo(padding, y40);
+            chartCtx.lineTo(width - padding, y40);
+            chartCtx.stroke();
+            
+            // Draw Target (70)
+            chartCtx.strokeStyle = 'rgba(74, 222, 128, 0.5)'; // green-400
+            chartCtx.beginPath();
+            chartCtx.moveTo(padding, y70);
+            chartCtx.lineTo(width - padding, y70);
+            chartCtx.stroke();
+            chartCtx.setLineDash([]); // Reset dash
+
+            // 2. Draw the Line Graph (Focus Score)
+            chartCtx.strokeStyle = '#818CF8'; // indigo-300
+            chartCtx.lineWidth = 3;
+            chartCtx.beginPath();
+
+            data.forEach((score, index) => {
+                const x = padding + index * stepX;
+                // Normalize score (0-100) to canvas height
+                const y = height - padding - (height - 2 * padding) * (score / 100);
+
+                if (index === 0) {
+                    chartCtx.moveTo(x, y);
+                } else {
+                    chartCtx.lineTo(x, y);
+                }
+
+                // Draw dots (only for low-focus points to highlight drops)
+                if (score < 40) {
+                    chartCtx.fillStyle = '#F87171'; // red-400
+                    chartCtx.beginPath();
+                    chartCtx.arc(x, y, 4, 0, Math.PI * 2);
+                    chartCtx.fill();
+                }
+            });
+
+            chartCtx.stroke();
+
+            // 3. Draw Axis Labels 
+            chartCtx.fillStyle = '#9CA3AF';
+            chartCtx.font = '10px Inter';
+            chartCtx.textAlign = 'right';
+            chartCtx.fillText('100', padding - 2, padding + 5);
+            chartCtx.fillText('50', padding - 2, height / 2 + 5);
+            chartCtx.fillText('0', padding - 2, height - padding);
+        }
+
+        // --- UI Update & Logging ---
+
+        function updateMetricsAndLog() {
+            if (!isTracking || !videoElement.srcObject) return;
+
+            const metrics = simulateAnalysis();
+            const { gazeStability, emotionalState, postureDeviation, overallScore } = metrics;
+
+            // 1. Update UI Metrics
+            gazeStabilityEl.textContent = `${gazeStability}%`;
+            gazeStabilityEl.className = `text-3xl font-bold mt-1 ${gazeStability >= 70 ? 'text-green-400' : gazeStability >= 40 ? 'text-yellow-400' : 'text-red-400'}`;
+            
+            emotionalStateEl.textContent = emotionalState;
+            emotionalStateEl.className = `text-xl font-bold mt-2 ${emotionalState === 'Neutral/Focused' ? 'text-blue-400' : emotionalState.includes('Smiling') ? 'text-yellow-400' : 'text-orange-400'}`;
+            
+            postureDeviationEl.textContent = postureDeviation;
+            postureDeviationEl.className = `text-xl font-bold mt-2 ${postureDeviation === 'Optimal' ? 'text-pink-400' : 'text-red-600'}`;
+
+            overallScoreEl.textContent = overallScore;
+            overallScoreEl.className = `text-3xl font-bold mt-1 ${overallScore >= 70 ? 'text-indigo-400' : overallScore >= 40 ? 'text-yellow-400' : 'text-red-400'}`;
+            
+            // 2. Draw Simulation Overlay
+            drawSimulation(gazeStability, emotionalState);
+
+            // 3. Log Data to Session Array (high frequency)
+            const logEntry = {
+                timestamp: Date.now(),
+                gazeStability: gazeStability,
+                emotionalState: emotionalState,
+                postureDeviation: postureDeviation,
+                overallScore: overallScore
+            };
+            sessionLog.unshift(logEntry); // Add to the front
+            sessionLog = sessionLog.slice(0, 200); 
+
+            // 4. Update Chart and Coaching
+            renderChart();
+            getCoachingFeedback();
+            
+            // Only render visual logs at a lower frequency for performance
+            if (sessionLog.length % 5 === 0) { 
+                 renderLogs();
+            }
+        }
+
+        function drawSimulation(gazeStability, emotionalState) {
+            if (videoElement.videoWidth === 0 || videoElement.videoHeight === 0) return;
+            
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+            ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            const colorMap = gazeStability >= 70 ? '#4ADE80' : gazeStability >= 40 ? '#FBBF24' : '#F87171';
+            
+            // Draw simulated bounding box for "Face & Pose"
+            ctx.strokeStyle = colorMap;
+            ctx.lineWidth = 4;
+            const boxSize = canvasElement.width * 0.4;
+            const boxX = (canvasElement.width / 2) - (boxSize / 2);
+            const boxY = (canvasElement.height / 2) - (boxSize / 2);
+            ctx.strokeRect(boxX, boxY, boxSize, boxSize);
+
+            // Indicator for Status
+            ctx.fillStyle = colorMap;
+            ctx.font = '24px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(emotionalState, canvasElement.width / 2, 40);
+        }
+
+        function renderLogs() {
+            const visualLog = sessionLog.filter((_, index) => index % 5 === 0);
+
+            if (visualLog.length === 0) {
+                logListEl.innerHTML = `<p class="p-4 text-gray-400 text-center">Press Start to begin logging data.</p>`;
+                return;
+            }
+
+            logListEl.innerHTML = visualLog.map(log => {
+                const date = new Date(log.timestamp).toLocaleTimeString();
+                const score = log.overallScore || 0;
+                const scoreColor = score >= 70 ? 'text-green-400' : score >= 40 ? 'text-yellow-400' : 'text-red-400';
+
+                return `
+                    <div class="data-log-item p-3 border-b border-gray-700 last:border-b-0 flex justify-between items-center">
+                        <span class="text-sm font-mono text-gray-300">${date}</span>
+                        <span class="text-xs text-gray-500">GSI: ${log.gazeStability || '--'}% | State: ${log.emotionalState || 'N/A'}</span>
+                        <span class="font-bold text-lg ${scoreColor}">${score}%</span>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // --- Session Control ---
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                videoElement.srcObject = stream;
+                videoStream = stream;
+                cameraStatus.textContent = 'Camera Active';
+                cameraStatus.classList.remove('bg-red-600');
+                cameraStatus.classList.add('bg-green-600');
+                videoElement.play();
+
+                videoElement.onloadedmetadata = () => {
+                    startTrackingLoop();
+                };
+
+            } catch (err) {
+                console.error("Error accessing the camera: ", err);
+                cameraStatus.textContent = 'Camera Denied/Error';
+                cameraStatus.classList.remove('bg-green-600');
+                cameraStatus.classList.add('bg-red-600');
+                statusMessageEl.textContent = "FATAL: Camera access required to start tracking.";
+                statusMessageEl.classList.remove('hidden');
+            }
+        }
+
+        function stopCamera() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+                cameraStatus.textContent = 'Camera Off';
+                cameraStatus.classList.remove('bg-green-600');
+                cameraStatus.classList.add('bg-red-600');
+                ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                chartCtx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+            }
+        }
+
+        window.startTracking = function() {
+            if (isTracking) return;
+            isTracking = true;
+            simulationStartTime = Date.now();
+            sessionLog = []; 
+            renderLogs();
+            
+            renderChart();
+
+            startButton.disabled = true;
+            stopButton.disabled = false;
+            startButton.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+            startButton.classList.add('bg-gray-700', 'cursor-not-allowed');
+            statusMessageEl.classList.remove('hidden');
+            statusMessageEl.textContent = "Initiating camera and simulation...";
+
+            startCamera();
+        }
+
+        window.stopTracking = function() {
+            if (!isTracking) return;
+            isTracking = false;
+            stopCamera();
+            if (trackingInterval) {
+                clearInterval(trackingInterval);
+                trackingInterval = null;
+            }
+            statusMessageEl.classList.add('hidden');
+            coachingFeedbackEl.classList.add('hidden');
+
+            startButton.disabled = false;
+            stopButton.disabled = true;
+            startButton.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+            startButton.classList.remove('bg-gray-700', 'cursor-not-allowed');
+
+            // Reset UI metrics
+            gazeStabilityEl.textContent = '--%';
+            emotionalStateEl.textContent = 'N/A';
+            postureDeviationEl.textContent = 'N/A';
+            overallScoreEl.textContent = '--';
+            overallScoreEl.className = 'text-3xl font-bold mt-1 text-indigo-400';
+            
+            renderChart();
+            logListEl.innerHTML = `<p class="p-4 text-gray-400 text-center">Press Start to begin logging data.</p>`;
+        }
+        
+        function startTrackingLoop() {
+             if (trackingInterval) clearInterval(trackingInterval);
+             trackingInterval = setInterval(updateMetricsAndLog, FAST_INTERVAL);
+             updateMetricsAndLog(); 
+             statusMessageEl.textContent = "Simulation running. Monitoring cognitive state every 300ms.";
+        }
+
+        window.onload = function() {
+            stopButton.disabled = true;
+            renderChart(); 
+        }
+    </script>
+</body>
+</html>
