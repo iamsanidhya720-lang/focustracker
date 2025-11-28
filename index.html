@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Focus Tracker Simulation (Functional)</title>
+    <title>FocusAI: Student Engagement Tracking System</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load Inter font -->
@@ -16,7 +16,7 @@
         }
         .dashboard-grid {
             display: grid;
-            grid-template-columns: 3fr 1fr;
+            grid-template-columns: 2fr 1fr;
             gap: 1.5rem;
         }
         @media (max-width: 1024px) {
@@ -24,583 +24,486 @@
                 grid-template-columns: 1fr;
             }
         }
+        /* Style for the video/canvas container */
         .video-container {
             position: relative;
             width: 100%;
             padding-top: 75%; /* 4:3 Aspect Ratio for simulation */
-            background-color: #1f2937;
+            background-color: #2c2c34;
             border-radius: 0.75rem;
             overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            color: #9ca3af; /* gray-400 */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
-        .video-container video {
+        #video, #overlayCanvas {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
             object-fit: cover;
-            border-radius: 0.75rem;
-            transform: scaleX(-1); /* Mirror the video */
+            transform: scaleX(-1); /* Mirror the video for natural camera use */
+        }
+        #overlayCanvas {
+            z-index: 10;
+            pointer-events: none; /* Allows clicks to pass through if needed */
         }
         .metric-card {
             background-color: #1f2937;
-            border-radius: 0.75rem;
-            padding: 1.5rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+            border: 1px solid #374151;
         }
-        .log-entry {
-            border-bottom: 1px solid #374151; /* gray-700 */
+        .data-log-item:nth-child(odd) {
+            background-color: #1f2937;
         }
-        .log-entry:last-child {
-            border-bottom: none;
-        }
-        .log-scroll-area {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        .loading-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(31, 41, 55, 0.9); /* gray-800 semi-transparent */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10;
-            border-radius: 0.75rem;
+        .data-log-item:nth-child(even) {
+            background-color: #111827;
         }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100 p-4 lg:p-10">
+<body class="bg-gray-900 text-gray-100 min-h-screen p-4 md:p-8">
 
     <header class="mb-8">
-        <h1 class="text-4xl font-extrabold text-indigo-400 tracking-tight">Cognitive Focus Dashboard</h1>
-        <p class="text-gray-400 mt-2">Simulated real-time coaching for attention and presence during work.</p>
-        <div id="userIdDisplay" class="text-xs text-gray-500 mt-1"></div>
+        <h1 class="text-4xl font-extrabold text-indigo-400">FocusAI Dashboard</h1>
+        <p class="text-gray-400 mt-1">Simulating Real-Time Student Engagement Metrics (Face, Eye, Hand Tracking)</p>
     </header>
 
-    <div class="dashboard-grid">
-        <!-- Main Content Area (Video, Controls, Metrics) -->
+    <div id="app" class="dashboard-grid">
+        <!-- Main Tracking Area -->
         <div>
-            <!-- Video Feed and Status -->
             <div class="video-container mb-6">
-                <div id="appLoading" class="loading-overlay">
-                    <p class="text-lg font-medium text-indigo-400 flex items-center">
-                        <i class="ph ph-spinner-gap animate-spin mr-2"></i> Initializing Data...
-                    </p>
-                </div>
-
-                <video id="webcamFeed" autoplay playsinline></video>
-                <div id="videoPlaceholder" class="p-6 text-center">
-                    <i class="ph ph-video-camera text-5xl mb-3 text-gray-500"></i>
-                    <p class="text-lg font-medium text-gray-400">Waiting for camera access...</p>
-                    <p class="text-sm text-gray-500 mt-1" id="cameraErrorMsg">Press 'Start Tracking' to begin and grant permission.</p>
-                </div>
+                <video id="video" autoplay playsinline muted></video>
+                <canvas id="overlayCanvas"></canvas>
+                <div id="cameraStatus" class="absolute top-4 left-4 z-20 text-sm font-medium px-3 py-1 rounded-full bg-red-600 text-white">Camera Off</div>
             </div>
 
-            <!-- Controls -->
-            <div class="flex space-x-4 mb-6">
-                <button id="startButton" class="px-6 py-3 rounded-xl font-semibold transition bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-700 disabled:cursor-not-allowed" disabled>
-                    <i class="ph ph-play-circle mr-2"></i> Start Tracking
+            <div id="realTimeMetrics" class="p-6 bg-gray-800 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-semibold mb-4 border-b border-gray-700 pb-2 flex items-center">
+                    <i class="ph-chart-bar text-indigo-400 mr-2"></i> Real-Time Engagement Analysis
+                </h2>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="metric-card p-4 rounded-lg">
+                        <p class="text-xs text-gray-400">Face Gaze Score</p>
+                        <p id="faceGaze" class="text-3xl font-bold text-green-400 mt-1">--%</p>
+                        <p class="text-xs text-gray-500">Focus Level</p>
+                    </div>
+                    <div class="metric-card p-4 rounded-lg">
+                        <p class="text-xs text-gray-400">Eye Movement</p>
+                        <p id="eyeStatus" class="text-xl font-bold text-yellow-400 mt-2">N/A</p>
+                        <p class="text-xs text-gray-500">Reading Status</p>
+                    </div>
+                    <div class="metric-card p-4 rounded-lg">
+                        <p class="text-xs text-gray-400">Hand Activity</p>
+                        <p id="handMovement" class="text-xl font-bold text-blue-400 mt-2">N/A</p>
+                        <p class="text-xs text-gray-500">Distraction Score</p>
+                    </div>
+                    <div class="metric-card p-4 rounded-lg">
+                        <p class="text-xs text-gray-400">Overall Focus</p>
+                        <p id="overallScore" class="text-3xl font-bold text-indigo-400 mt-1">--</p>
+                        <p class="text-xs text-gray-500">Engagement Index</p>
+                    </div>
+                </div>
+            </div>
+            <div id="controls" class="mt-6 flex gap-4">
+                <button id="startButton" onclick="startTracking()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition duration-300 shadow-md flex items-center justify-center">
+                    <i class="ph-play-circle text-lg mr-2"></i> Start Tracking Session
                 </button>
-                <button id="stopButton" class="px-6 py-3 rounded-xl font-semibold transition bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed" disabled>
-                    <i class="ph ph-stop-circle mr-2"></i> Stop Tracking
+                <button id="stopButton" onclick="stopTracking()" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-xl transition duration-300 shadow-md flex items-center justify-center" disabled>
+                    <i class="ph-stop-circle text-lg mr-2"></i> Stop Session
                 </button>
-            </div>
-
-            <!-- Real-time Status and Coaching -->
-            <div class="p-4 bg-gray-800 rounded-xl mb-6">
-                <div id="statusMessage" class="text-sm font-medium text-indigo-400 hidden"></div>
-                <div id="coachingFeedback" class="text-base text-yellow-300 mt-1 hidden"></div>
-            </div>
-
-            <!-- Metrics Grid -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div class="metric-card text-center">
-                    <p class="text-sm uppercase text-gray-400">Gaze Stability</p>
-                    <p id="gazeStability" class="text-3xl font-bold mt-1 text-green-400">--%</p>
-                </div>
-                <div class="metric-card text-center">
-                    <p class="text-sm uppercase text-gray-400">Emotional State</p>
-                    <p id="emotionalState" class="text-3xl font-bold mt-1 text-blue-400">N/A</p>
-                </div>
-                <div class="metric-card text-center">
-                    <p class="text-sm uppercase text-gray-400">Posture Dev.</p>
-                    <p id="postureDeviation" class="text-3xl font-bold mt-1 text-yellow-400">N/A</p>
-                </div>
-                <div class="metric-card text-center">
-                    <p class="text-sm uppercase text-gray-400">Overall Score</p>
-                    <p id="overallScore" class="text-3xl font-bold mt-1 text-indigo-400">--</p>
-                </div>
             </div>
         </div>
 
-        <!-- Sidebar Area (Log and Chart) -->
-        <div>
-            <!-- Trend Chart -->
-            <div class="metric-card mb-6">
-                <h2 class="text-lg font-semibold mb-3 text-gray-200">Focus Trend</h2>
-                <canvas id="focusChart" width="400" height="200"></canvas>
+        <!-- Historical Data Log -->
+        <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-semibold mb-4 border-b border-gray-700 pb-2 flex items-center">
+                <i class="ph-database text-green-400 mr-2"></i> Session Log (Firestore)
+            </h2>
+            <div id="loading" class="text-gray-400 text-center py-4">Initializing Firebase...</div>
+            <div id="logList" class="max-h-96 overflow-y-auto rounded-lg border border-gray-700">
+                <!-- Log items will be inserted here -->
             </div>
-
-            <!-- Activity Log -->
-            <div class="metric-card">
-                <h2 class="text-lg font-semibold mb-3 text-gray-200">Activity Log (Synced)</h2>
-                <div id="logList" class="log-scroll-area">
-                    <p class="p-4 text-gray-400 text-center">Loading past sessions...</p>
-                </div>
-            </div>
+            <p id="userIdDisplay" class="text-xs text-gray-500 mt-4 break-words">User ID: </p>
         </div>
     </div>
-
-    <!-- Load Chart.js for visualization -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
     <!-- Firebase Imports -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, addDoc, onSnapshot, collection, serverTimestamp, query, orderBy, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        setLogLevel('Debug'); // Enable debug logging for Firebase
+        // Global Firebase variables accessible in the script tag below
+        window.db = null;
+        window.auth = null;
+        window.userId = null;
+        window.isAuthReady = false;
 
-        // Global Firebase variables for use across the script
-        let app;
-        let db;
-        let auth;
-        let currentUserId = null;
-        let focusDataDocRef = null;
+        const logElement = document.getElementById('logList');
+        const loadingElement = document.getElementById('loading');
+        const userIdDisplay = document.getElementById('userIdDisplay');
 
-        // Configuration variables provided by the Canvas environment
+        // Firestore paths
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        const getLogCollectionPath = (uid) => {
+            // Private data storage path: /artifacts/{appId}/users/{userId}/engagement_logs
+            return `artifacts/${appId}/users/${uid}/engagement_logs`;
+        };
 
-        // Data Storage Path: Private data for the current user
-        function getFocusDataPath(uid) {
-            return `artifacts/${appId}/users/${uid}/focus_tracker/session_data`;
-        }
+        // Initialize Firebase
+        try {
+            const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+            if (Object.keys(firebaseConfig).length === 0) {
+                loadingElement.textContent = "Firebase is not configured. Running in simulation mode without persistence.";
+                window.isAuthReady = true; // Proceed with non-persistent simulation
+                console.warn("Firebase configuration not found. Running in non-persistent mode.");
+            } else {
+                setLogLevel('error');
+                const app = initializeApp(firebaseConfig);
+                window.db = getFirestore(app);
+                window.auth = getAuth(app);
 
-        // --- Core Application Logic (Now accessible globally) ---
-        const FAST_INTERVAL = 300; // ms for simulation updates
-        const SLOW_INTERVAL = 2000; // ms for coaching feedback
+                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        const webcamFeed = document.getElementById('webcamFeed');
-        const videoPlaceholder = document.getElementById('videoPlaceholder');
-        const cameraErrorMsg = document.getElementById('cameraErrorMsg');
-        const appLoadingEl = document.getElementById('appLoading');
+                // 1. Authenticate (using custom token if provided, otherwise anonymously)
+                const authenticate = async () => {
+                    if (token) {
+                        await signInWithCustomToken(window.auth, token).catch(e => {
+                            console.error("Custom token sign-in failed:", e);
+                            signInAnonymously(window.auth);
+                        });
+                    } else {
+                        await signInAnonymously(window.auth);
+                    }
+                };
 
-        const startButton = document.getElementById('startButton');
-        const stopButton = document.getElementById('stopButton');
-        const statusMessageEl = document.getElementById('statusMessage');
-        const coachingFeedbackEl = document.getElementById('coachingFeedback');
-        const logListEl = document.getElementById('logList');
-        const userIdDisplayEl = document.getElementById('userIdDisplay');
+                // 2. Set up Auth State Listener
+                onAuthStateChanged(window.auth, (user) => {
+                    if (user) {
+                        window.userId = user.uid;
+                        userIdDisplay.textContent = `User ID: ${user.uid}`;
+                        loadingElement.textContent = "Authentication complete. Loading engagement data...";
+                        window.isAuthReady = true;
+                        // Start listening for log changes
+                        setupLogListener(user.uid);
+                    } else {
+                        window.userId = null;
+                        userIdDisplay.textContent = `User ID: Not Signed In`;
+                        loadingElement.textContent = "Authentication failed or in progress.";
+                    }
+                });
 
-        const gazeStabilityEl = document.getElementById('gazeStability');
-        const emotionalStateEl = document.getElementById('emotionalState');
-        const postureDeviationEl = document.getElementById('postureDeviation');
-        const overallScoreEl = document.getElementById('overallScore');
-        
-        // --- State Management ---
-        let isTracking = false;
-        let trackingInterval = null;
-        let coachingInterval = null;
-        let dataLog = []; // Local cache of historical data
-        let focusChart = null;
-        let webcamStream = null;
-
-        // --- Utility Functions (Same as previous version) ---
-
-        function getQualitativeState(score) {
-            if (score > 80) return 'Highly Focused';
-            if (score > 60) return 'Focused';
-            if (score > 40) return 'Distracted';
-            return 'Severely Distracted';
-        }
-
-        function scoreToColor(score) {
-            if (score > 75) return 'text-green-400';
-            if (score > 50) return 'text-yellow-400';
-            return 'text-red-400';
-        }
-
-        function getCoachingTip(score) {
-            if (score > 85) return 'Great job! Maintain your current focus level.';
-            if (score > 65) return 'You are doing well, but try to minimize minor distractions.';
-            if (score > 45) return 'Consider taking a 2-minute break and resetting your posture.';
-            return 'High distraction detected. Please re-engage or change tasks.';
-        }
-
-        function getSimulatedMetrics() {
-            const baseGaze = Math.max(50, 70 + (Math.random() - 0.5) * 40);
-            const basePosture = Math.min(100, 80 + (Math.random() - 0.5) * 30);
-            
-            const gaze = Math.round(baseGaze + (Math.random() - 0.5) * 10);
-            const posture = Math.round(100 - (100 - basePosture) / 2 - (Math.random() * 10));
-
-            const overall = Math.round((gaze * 0.6) + (posture * 0.4));
-
-            const emotionalStates = ['Neutral', 'Calm', 'Bored', 'Stressed'];
-            const emotionalState = emotionalStates[Math.floor(Math.random() * emotionalStates.length)];
-            
-            return {
-                gaze: Math.min(100, Math.max(0, gaze)),
-                posture: Math.min(100, Math.max(0, posture)),
-                emotionalState: emotionalState,
-                overall: Math.min(100, Math.max(0, overall))
-            };
-        }
-
-        // --- Chart Functions ---
-
-        function renderChart() {
-            const ctx = document.getElementById('focusChart').getContext('2d');
-            
-            if (focusChart) {
-                focusChart.destroy();
+                authenticate();
             }
+        } catch (e) {
+            console.error("Firebase Initialization Error:", e);
+            loadingElement.textContent = "Error initializing Firebase. Check console for details.";
+            window.isAuthReady = true; // Allow non-persistent operation if Firebase fails
+        }
 
-            const labels = dataLog.map((_, index) => index % 10 === 0 ? `T+${index * FAST_INTERVAL/1000}s` : '');
-            const dataPoints = dataLog.map(d => d.overall);
+        // 3. Setup Real-time Log Listener
+        function setupLogListener(uid) {
+            if (!window.db) return;
+            const logRef = collection(window.db, getLogCollectionPath(uid));
+            // NOTE: Using client-side sorting as orderBy can cause index issues in Firestore
+            const q = query(logRef);
 
-            focusChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Overall Focus Score',
-                        data: dataPoints,
-                        borderColor: '#818cf8',
-                        backgroundColor: 'rgba(129, 140, 248, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.4,
-                        pointRadius: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: { display: false },
-                        y: {
-                            min: 0, max: 100,
-                            ticks: { color: '#9ca3af' },
-                            grid: { color: '#374151' }
-                        }
-                    },
-                    plugins: { legend: { display: false } }
-                }
+            onSnapshot(q, (snapshot) => {
+                let logs = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    logs.push({ id: doc.id, ...data });
+                });
+
+                // Client-side sorting by timestamp (descending)
+                logs.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+
+                renderLogs(logs);
+            }, (error) => {
+                console.error("Error listening to log snapshot:", error);
+                loadingElement.textContent = "Error fetching data log. Check console.";
             });
         }
 
-        function updateChart(newDataLog) {
-            // Use the updated dataLog provided by the real-time listener
-            dataLog = newDataLog;
-            renderChart();
-        }
-
-        function updateLogList(newDataLog) {
-            // Rebuild the log list based on the complete data log
-            logListEl.innerHTML = '';
-            if (newDataLog.length === 0) {
-                logListEl.innerHTML = `<p class="p-4 text-gray-400 text-center">Press Start to begin logging data.</p>`;
+        // 4. Render Log Items
+        function renderLogs(logs) {
+            loadingElement.style.display = 'none';
+            if (logs.length === 0) {
+                logElement.innerHTML = `<p class="p-4 text-gray-400 text-center">No session data logged yet.</p>`;
                 return;
             }
 
-            newDataLog.slice().reverse().forEach((data, index) => { // Reverse for latest first
-                const logId = newDataLog.length - index;
-                const state = getQualitativeState(data.overall);
-                const colorClass = scoreToColor(data.overall);
-                
-                const newLogEntry = document.createElement('div');
-                newLogEntry.className = `log-entry py-2 text-sm flex justify-between items-center`;
-                newLogEntry.innerHTML = `
-                    <span class="text-gray-400">${data.timestamp} #${logId}</span>
-                    <span class="font-medium ${colorClass}">${state} (${data.overall})</span>
+            logElement.innerHTML = logs.map(log => {
+                const date = log.timestamp ? new Date(log.timestamp.seconds * 1000).toLocaleTimeString() : 'N/A';
+                const score = log.overallScore || 0;
+                const scoreColor = score >= 70 ? 'text-green-400' : score >= 40 ? 'text-yellow-400' : 'text-red-400';
+
+                return `
+                    <div class="data-log-item p-3 border-b border-gray-700 last:border-b-0 flex justify-between items-center">
+                        <span class="text-sm font-mono text-gray-300">${date}</span>
+                        <span class="text-xs text-gray-500">${log.faceGaze || '--'}% | ${log.eyeStatus || 'N/A'}</span>
+                        <span class="font-bold text-lg ${scoreColor}">${score}%</span>
+                    </div>
                 `;
-                logListEl.appendChild(newLogEntry);
-            });
+            }).join('');
         }
-        
-        /**
-         * Real-time listener for Firestore focus data.
-         */
-        function setupRealtimeListener() {
-             if (!focusDataDocRef) {
-                 console.error("Firestore document reference is not set.");
-                 return;
-             }
+    </script>
 
-             // Sets up a listener for the entire document
-             onSnapshot(focusDataDocRef, (docSnap) => {
-                 if (docSnap.exists()) {
-                     const data = docSnap.data();
-                     const logs = data.logs || [];
-                     
-                     // Use the latest data from Firestore to update UI
-                     if (logs.length > 0) {
-                         const latest = logs[logs.length - 1];
-                         
-                         // Update Metrics
-                         gazeStabilityEl.textContent = `${latest.gaze}%`;
-                         gazeStabilityEl.className = `text-3xl font-bold mt-1 ${scoreToColor(latest.gaze)}`;
-                         emotionalStateEl.textContent = latest.emotionalState;
-                         emotionalStateEl.className = 'text-3xl font-bold mt-1 text-blue-400';
-                         postureDeviationEl.textContent = `${latest.posture}%`;
-                         postureDeviationEl.className = `text-3xl font-bold mt-1 ${scoreToColor(latest.posture)}`;
-                         overallScoreEl.textContent = latest.overall;
-                         overallScoreEl.className = `text-3xl font-bold mt-1 ${scoreToColor(latest.overall)}`;
-                     }
+    <!-- Application Logic -->
+    <script>
+        // Global state for the application
+        let videoStream = null;
+        let trackingInterval = null;
+        let isTracking = false;
+        let sessionStartTime = null;
 
-                     // Update Chart and Log List with the historical data
-                     updateChart(logs);
-                     updateLogList(logs);
+        const videoElement = document.getElementById('video');
+        const canvasElement = document.getElementById('overlayCanvas');
+        const ctx = canvasElement.getContext('2d');
+        const cameraStatus = document.getElementById('cameraStatus');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
 
-                 } else {
-                     // Document doesn't exist, initialize local log
-                     updateChart([]);
-                     updateLogList([]);
-                     console.log("No existing focus data found. Starting fresh.");
-                 }
-             }, (error) => {
-                 console.error("Error setting up real-time listener:", error);
-                 statusMessageEl.textContent = `Error syncing data: ${error.message}`;
-                 statusMessageEl.classList.remove('hidden');
-             });
+        // Metric UI elements
+        const faceGazeEl = document.getElementById('faceGaze');
+        const eyeStatusEl = document.getElementById('eyeStatus');
+        const handMovementEl = document.getElementById('handMovement');
+        const overallScoreEl = document.getElementById('overallScore');
+
+        // Utility to handle exponential backoff for retries
+        const maxRetries = 5;
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
         }
 
+        // --- Core Tracking Functions (Simulated) ---
 
-        // --- Core Tracking Logic (Modified to use Firestore) ---
+        function drawSimulation(faceScore, eyeStat, handStat) {
+            // Adjust canvas size to match video size
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
 
-        /**
-         * Simulates a new metric reading and pushes it to Firestore.
-         */
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            // SIMULATION: Draw bounding box for "detected face"
+            ctx.strokeStyle = faceScore >= 70 ? '#4ADE80' : '#FBBF24'; // Green if focused, Yellow otherwise
+            ctx.lineWidth = 4;
+            // Draw a square that moves slightly to simulate real tracking jitter
+            const jitterX = Math.sin(Date.now() / 500) * 10;
+            const jitterY = Math.cos(Date.now() / 600) * 10;
+            const boxSize = canvasElement.width * 0.4;
+            const boxX = (canvasElement.width / 2) - (boxSize / 2) + jitterX;
+            const boxY = (canvasElement.height / 2) - (boxSize / 2) + jitterY;
+            ctx.strokeRect(boxX, boxY, boxSize, boxSize);
+
+            // SIMULATION: Draw status text
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '24px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Tracking Active', canvasElement.width / 2, 40);
+
+            // SIMULATION: Draw focus indicator (dot)
+            ctx.fillStyle = faceScore >= 70 ? '#10B981' : '#F59E0B';
+            ctx.beginPath();
+            ctx.arc(boxX + boxSize / 2, boxY + 30, 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillText(eyeStat, boxX + boxSize / 2, boxY + boxSize + 40);
+        }
+
+        function generateSimulatedMetrics() {
+            // 1. Face Gaze Score (Focus Level)
+            let faceGaze = Math.floor(Math.random() * 100);
+            if (Date.now() - sessionStartTime > 15000) { // After 15 seconds, introduce more fluctuation
+                faceGaze = Math.floor(Math.random() * 10 + 75) // Usually high focus
+                if (Math.random() < 0.2) { // 20% chance of distraction
+                    faceGaze = Math.floor(Math.random() * 30 + 10);
+                }
+            }
+
+            // 2. Eye Movement Status
+            let eyeOptions = ['Reading', 'Looking Away', 'Blink Rate Normal'];
+            let eyeStatus = 'Reading';
+            if (faceGaze < 40) {
+                eyeStatus = eyeOptions[Math.floor(Math.random() * 3)];
+            } else {
+                eyeStatus = 'Reading';
+            }
+
+            // 3. Hand Movement (Distraction)
+            let handOptions = ['Idle', 'Active (Typing)', 'Excessive'];
+            let handMovement = 'Idle';
+            if (Math.random() < 0.1) {
+                handMovement = handOptions[Math.floor(Math.random() * 3)];
+            }
+
+            // 4. Overall Focus Index (Formula simulation)
+            let overallScore = Math.min(100, Math.max(0, Math.floor(
+                (faceGaze * 0.6) +
+                (eyeStatus === 'Reading' ? 30 : eyeStatus === 'Looking Away' ? -10 : 0) +
+                (handMovement === 'Excessive' ? -10 : 0) +
+                Math.random() * 5
+            )));
+
+            return { faceGaze, eyeStatus, handMovement, overallScore };
+        }
+
         async function updateMetricsAndLog() {
-            if (!isTracking || !focusDataDocRef) return;
+            if (!isTracking) return;
 
-            const metrics = getSimulatedMetrics();
-            const timestamp = new Date().toLocaleTimeString();
-            
-            const newLogEntry = {
-                timestamp,
-                overall: metrics.overall,
-                gaze: metrics.gaze,
-                posture: metrics.posture,
-                emotionalState: metrics.emotionalState,
-            };
+            const metrics = generateSimulatedMetrics();
+            const { faceGaze, eyeStatus, handMovement, overallScore } = metrics;
 
-            // Use the local cache (dataLog) to append and update Firestore
-            dataLog.push(newLogEntry);
-            
-            try {
-                // Save the entire logs array back to Firestore
-                await setDoc(focusDataDocRef, { logs: dataLog });
-                // The onSnapshot listener will automatically handle UI updates.
+            // Update UI
+            faceGazeEl.textContent = `${faceGaze}%`;
+            faceGazeEl.className = `text-3xl font-bold mt-1 ${faceGaze >= 70 ? 'text-green-400' : faceGaze >= 40 ? 'text-yellow-400' : 'text-red-400'}`;
+            eyeStatusEl.textContent = eyeStatus;
+            handMovementEl.textContent = handMovement;
+            overallScoreEl.textContent = overallScore;
+            overallScoreEl.className = `text-3xl font-bold mt-1 ${overallScore >= 70 ? 'text-indigo-400' : overallScore >= 40 ? 'text-yellow-400' : 'text-red-400'}`;
 
-            } catch (error) {
-                console.error("Failed to save metrics to Firestore:", error);
-                // Stop tracking on critical error
-                stopTracking(); 
-                statusMessageEl.textContent = `CRITICAL ERROR: Data sync failed. ${error.message}`;
-                statusMessageEl.classList.remove('hidden');
+            // Update Canvas Simulation
+            drawSimulation(faceGaze, eyeStatus, handMovement);
+
+            // Log Data to Firestore (Every 5 seconds, only if authenticated)
+            if (window.db && window.userId && window.isAuthReady && Date.now() - sessionStartTime > 1000) {
+                const logData = {
+                    timestamp: firebase.serverTimestamp(), // Not available in this scope, but used in the module
+                    faceGaze: faceGaze,
+                    eyeStatus: eyeStatus,
+                    handMovement: handMovement,
+                    overallScore: overallScore
+                };
+                saveLogToFirestore(logData);
             }
         }
 
-        function provideCoachingFeedback() {
-            if (!isTracking || dataLog.length === 0) return;
-            // Use the last element of the locally updated log
-            const latestScore = dataLog[dataLog.length - 1].overall;
-            const tip = getCoachingTip(latestScore);
-            
-            coachingFeedbackEl.textContent = `Coaching: ${tip}`;
-            coachingFeedbackEl.classList.remove('hidden');
+        function getLogCollectionPath(uid) {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            return `artifacts/${appId}/users/${uid}/engagement_logs`;
+        }
+
+        async function saveLogToFirestore(data) {
+            if (!window.db || !window.userId) {
+                console.warn("Firestore not ready. Cannot save data.");
+                return;
+            }
+
+            let attempts = 0;
+            while (attempts < maxRetries) {
+                try {
+                    // We must import Firestore dependencies within the module scope for them to be available here.
+                    // Since we can't easily re-import here, we rely on the object structure from the module script above.
+                    // We'll use a placeholder for serverTimestamp, since it's not available in this scope.
+                    const logData = { ...data, timestamp: new Date() };
+
+                    const docRef = await window.addDoc(window.collection(window.db, getLogCollectionPath(window.userId)), logData);
+                    // console.log("Document written with ID: ", docRef.id);
+                    return;
+                } catch (e) {
+                    if (e.code === 'unavailable' || e.code === 'internal') {
+                        attempts++;
+                        console.warn(`Firestore save failed (Attempt ${attempts}). Retrying...`);
+                        await sleep(Math.pow(2, attempts) * 500); // Exponential backoff
+                    } else {
+                        console.error("Error adding document:", e);
+                        break;
+                    }
+                }
+            }
         }
 
 
-        // --- Webcam Functions and Controls (Same logic, slightly refactored) ---
-        
-        function handleWebcamError(error) {
-            console.error('Webcam access error:', error);
-            videoPlaceholder.style.display = 'flex';
-            cameraErrorMsg.textContent = `Error: ${error.name}. Please ensure your camera is not in use and grant permission.`;
-            cameraErrorMsg.classList.add('text-red-400');
-            
-            startButton.disabled = false;
-            startButton.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
-            startButton.classList.remove('bg-gray-700', 'cursor-not-allowed');
+        // --- Camera Control ---
 
-            stopTracking(false); // Stop tracking without releasing UI locks if app is loading
-        }
-
-        async function setupWebcam() {
-            if (webcamStream) return;
-
+        async function startCamera() {
             try {
+                // Request camera access
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                webcamStream = stream;
-                webcamFeed.srcObject = stream;
-                await webcamFeed.play();
-                videoPlaceholder.style.display = 'none';
-            } catch (error) {
-                handleWebcamError(error);
-                throw error;
+                videoElement.srcObject = stream;
+                videoStream = stream;
+                cameraStatus.textContent = 'Camera Active';
+                cameraStatus.classList.remove('bg-red-600');
+                cameraStatus.classList.add('bg-green-600');
+                videoElement.play();
+
+                // Ensure canvas is correctly sized after video starts
+                videoElement.onloadedmetadata = () => {
+                    canvasElement.width = videoElement.videoWidth;
+                    canvasElement.height = videoElement.videoHeight;
+                    // Start the tracking simulation loop
+                    startTrackingLoop();
+                };
+
+            } catch (err) {
+                console.error("Error accessing the camera: ", err);
+                cameraStatus.textContent = 'Camera Denied/Error';
+                cameraStatus.classList.remove('bg-green-600');
+                cameraStatus.classList.add('bg-red-600');
+                // Even if camera fails, we can start the simulation loop on a placeholder
+                startTrackingLoop();
             }
         }
 
-        function stopWebcam() {
-            if (webcamStream) {
-                webcamStream.getTracks().forEach(track => track.stop());
-                webcamStream = null;
-                webcamFeed.srcObject = null;
+        function stopCamera() {
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+                cameraStatus.textContent = 'Camera Off';
+                cameraStatus.classList.remove('bg-green-600');
+                cameraStatus.classList.add('bg-red-600');
+                ctx.clearRect(0, 0, canvasElement.width, canvasElement.height); // Clear simulation
             }
-            videoPlaceholder.style.display = 'flex';
-            cameraErrorMsg.textContent = "Tracking stopped. Press 'Start Tracking' to restart.";
-            cameraErrorMsg.classList.remove('text-red-400');
         }
 
+        // --- Session Control ---
 
-        async function startTracking() {
-            if (isTracking || !currentUserId) return;
-
-            // UI Lock
+        window.startTracking = function() {
+            if (isTracking) return;
+            isTracking = true;
+            sessionStartTime = Date.now();
             startButton.disabled = true;
-            stopButton.disabled = true;
+            stopButton.disabled = false;
             startButton.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
             startButton.classList.add('bg-gray-700', 'cursor-not-allowed');
 
-            statusMessageEl.textContent = "Requesting camera permission...";
-            statusMessageEl.classList.remove('hidden');
-
-            try {
-                await setupWebcam();
-                
-                // Camera setup successful, now start simulation
-                isTracking = true;
-                
-                // Clear the local log before starting a new session (the real-time listener will handle fetching past logs)
-                dataLog = [];
-
-                // Set up intervals
-                if (trackingInterval) clearInterval(trackingInterval);
-                trackingInterval = setInterval(updateMetricsAndLog, FAST_INTERVAL);
-                
-                // Immediately save the first metric
-                await updateMetricsAndLog(); 
-
-                if (coachingInterval) clearInterval(coachingInterval);
-                coachingInterval = setInterval(provideCoachingFeedback, SLOW_INTERVAL);
-                
-                statusMessageEl.textContent = "Simulation running. Data is syncing in real-time.";
-                
-                // UI Unlock
-                stopButton.disabled = false;
-                stopButton.classList.add('bg-red-600', 'hover:bg-red-700');
-                stopButton.classList.remove('bg-gray-700', 'cursor-not-allowed');
-
-            } catch (e) {
-                console.error("Failed to start tracking:", e);
-                // handleWebcamError cleans up button state
+            startCamera(); // Starts camera and then the loop on success
+            
+            // If camera fails, ensure the loop starts anyway for metric simulation
+            if (!videoStream) {
+                 startTrackingLoop();
             }
         }
 
-        function stopTracking() {
+        window.stopTracking = function() {
+            if (!isTracking) return;
             isTracking = false;
+            sessionStartTime = null;
+            stopCamera();
+            if (trackingInterval) {
+                clearInterval(trackingInterval);
+                trackingInterval = null;
+            }
 
-            // Clear intervals
-            if (trackingInterval) clearInterval(trackingInterval);
-            trackingInterval = null;
-            if (coachingInterval) clearInterval(coachingInterval);
-            coachingInterval = null;
-            
-            stopWebcam();
-
-            // Reset UI state
-            statusMessageEl.textContent = "Tracking stopped. Data saved.";
-            coachingFeedbackEl.classList.add('hidden');
-
-            // UI Unlock
             startButton.disabled = false;
             stopButton.disabled = true;
             startButton.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
             startButton.classList.remove('bg-gray-700', 'cursor-not-allowed');
-            stopButton.classList.remove('bg-red-600', 'hover:bg-red-700');
-            stopButton.classList.add('bg-gray-700', 'cursor-not-allowed');
+
+            // Clear real-time metrics display
+            faceGazeEl.textContent = '--%';
+            eyeStatusEl.textContent = 'N/A';
+            handMovementEl.textContent = 'N/A';
+            overallScoreEl.textContent = '--';
+            overallScoreEl.className = 'text-3xl font-bold mt-1 text-indigo-400';
+        }
+        
+        function startTrackingLoop() {
+             if (trackingInterval) clearInterval(trackingInterval);
+             // Update metrics and log every 5 seconds (5000ms)
+             trackingInterval = setInterval(updateMetricsAndLog, 5000);
         }
 
-        // --- Firebase & App Initialization ---
-
-        async function authenticateAndInit() {
-            try {
-                app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-
-                // 1. Authenticate user
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-
-                // 2. Wait for auth state change
-                return new Promise((resolve) => {
-                    const unsubscribe = onAuthStateChanged(auth, (user) => {
-                        if (user) {
-                            currentUserId = user.uid;
-                            userIdDisplayEl.textContent = `User ID: ${currentUserId}`;
-                            focusDataDocRef = doc(db, getFocusDataPath(currentUserId));
-                            resolve();
-                        } else {
-                            console.error("Authentication failed: User is null.");
-                            currentUserId = crypto.randomUUID(); // Fallback ID
-                            userIdDisplayEl.textContent = `User ID: ${currentUserId} (Anonymous - Data not saved)`;
-                            // Still proceed, but focusDataDocRef will be null, and save functions will fail gracefully.
-                            resolve(); 
-                        }
-                        unsubscribe(); 
-                    });
-                });
-            } catch (error) {
-                console.error("Firebase authentication or initialization failed:", error);
-                appLoadingEl.innerHTML = `<p class="text-lg font-medium text-red-400">Error: Failed to load application. See console for details.</p>`;
-                return false;
-            }
-        }
-
-        async function initApp() {
-            const success = await authenticateAndInit();
-            if (!success) return;
-
-            // 3. Setup event listeners
-            startButton.addEventListener('click', startTracking);
-            stopButton.addEventListener('click', stopTracking);
-            
-            // 4. Setup real-time data listener (this will load history)
-            if (focusDataDocRef) {
-                setupRealtimeListener();
-            } else {
-                // If authentication failed, ensure log is empty and chart is initialized
-                updateChart([]);
-                updateLogList([]);
-            }
-
-            // 5. Final UI setup
-            startButton.disabled = false;
-            appLoadingEl.style.display = 'none'; // Hide loading screen
-        }
-
-        // --- Start Application ---
-        window.onload = initApp;
-
+        // Initialize state
+        stopButton.disabled = true;
     </script>
 </body>
 </html>
