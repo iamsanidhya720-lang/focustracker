@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Focus Tracker Simulation (Fixed Parameters)</title>
+    <title>FocusAI: Student Engagement Tracking System</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load Inter font -->
@@ -16,7 +16,7 @@
         }
         .dashboard-grid {
             display: grid;
-            grid-template-columns: 3fr 1fr;
+            grid-template-columns: 2fr 1fr;
             gap: 1.5rem;
         }
         @media (max-width: 1024px) {
@@ -24,11 +24,12 @@
                 grid-template-columns: 1fr;
             }
         }
+        /* Style for the video/canvas container */
         .video-container {
             position: relative;
             width: 100%;
             padding-top: 75%; /* 4:3 Aspect Ratio for simulation */
-            background-color: #1f2937;
+            background-color: #2c2c34;
             border-radius: 0.75rem;
             overflow: hidden;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
@@ -40,14 +41,14 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transform: scaleX(-1); /* Mirror the video for self-view */
+            transform: scaleX(-1); /* Mirror the video for natural camera use */
         }
         #overlayCanvas {
             z-index: 10;
-            pointer-events: none;
+            pointer-events: none; /* Allows clicks to pass through if needed */
         }
         .metric-card {
-            background-color: #111827;
+            background-color: #1f2937;
             border: 1px solid #374151;
         }
         .data-log-item:nth-child(odd) {
@@ -56,27 +57,17 @@
         .data-log-item:nth-child(even) {
             background-color: #111827;
         }
-        /* Style for the fast-updating feedback */
-        .feedback-pulse {
-            animation: pulse-border 1.5s infinite;
-        }
-
-        @keyframes pulse-border {
-            0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4); }
-            70% { box-shadow: 0 0 0 6px rgba(79, 70, 229, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
-        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen p-4 md:p-8">
 
     <header class="mb-8">
-        <h1 class="text-4xl font-extrabold text-indigo-400">Focus Tracker Simulation</h1>
-        <p class="text-gray-400 mt-1">Real-Time Cognitive State Analysis (Client-Side Only)</p>
+        <h1 class="text-4xl font-extrabold text-indigo-400">FocusAI Dashboard</h1>
+        <p class="text-gray-400 mt-1">Simulating Real-Time Student Engagement Metrics (Face, Eye, Hand Tracking)</p>
     </header>
 
     <div id="app" class="dashboard-grid">
-        <!-- Main Tracking Area & Simulated Metrics -->
+        <!-- Main Tracking Area -->
         <div>
             <div class="video-container mb-6">
                 <video id="video" autoplay playsinline muted></video>
@@ -84,419 +75,348 @@
                 <div id="cameraStatus" class="absolute top-4 left-4 z-20 text-sm font-medium px-3 py-1 rounded-full bg-red-600 text-white">Camera Off</div>
             </div>
 
-            <div id="metrics" class="p-6 bg-gray-800 rounded-xl shadow-lg">
+            <div id="realTimeMetrics" class="p-6 bg-gray-800 rounded-xl shadow-lg">
                 <h2 class="text-2xl font-semibold mb-4 border-b border-gray-700 pb-2 flex items-center">
-                    <i class="ph-brain text-green-400 mr-2"></i> Cognitive State Simulation
+                    <i class="ph-chart-bar text-indigo-400 mr-2"></i> Real-Time Engagement Analysis
                 </h2>
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <div class="metric-card p-4 rounded-lg">
-                        <p class="text-xs text-gray-400">Gaze Stability Index (GSI)</p>
-                        <p id="gazeStability" class="text-3xl font-bold text-yellow-400 mt-1">--%</p>
-                        <p class="text-xs text-gray-500">Simulated Eye Movement / Zoning Out</p>
+                        <p class="text-xs text-gray-400">Face Gaze Score</p>
+                        <p id="faceGaze" class="text-3xl font-bold text-green-400 mt-1">--%</p>
+                        <p class="text-xs text-gray-500">Focus Level</p>
                     </div>
                     <div class="metric-card p-4 rounded-lg">
-                        <p class="text-xs text-gray-400">Emotional State</p>
-                        <p id="emotionalState" class="text-xl font-bold text-blue-400 mt-2">N/A</p>
-                        <p class="text-xs text-gray-500">Simulated Affective Display</p>
+                        <p class="text-xs text-gray-400">Eye Movement</p>
+                        <p id="eyeStatus" class="text-xl font-bold text-yellow-400 mt-2">N/A</p>
+                        <p class="text-xs text-gray-500">Reading Status</p>
                     </div>
                     <div class="metric-card p-4 rounded-lg">
-                        <p class="text-xs text-gray-400">Posture Deviation</p>
-                        <p id="postureDeviation" class="text-xl font-bold text-pink-400 mt-2">N/A</p>
-                        <p class="text-xs text-gray-500">Simulated Body Position</p>
+                        <p class="text-xs text-gray-400">Hand Activity</p>
+                        <p id="handMovement" class="text-xl font-bold text-blue-400 mt-2">N/A</p>
+                        <p class="text-xs text-gray-500">Distraction Score</p>
                     </div>
                     <div class="metric-card p-4 rounded-lg">
-                        <p id="overallScoreLabel" class="text-xs text-gray-400">Overall Focus Index</p>
+                        <p class="text-xs text-gray-400">Overall Focus</p>
                         <p id="overallScore" class="text-3xl font-bold text-indigo-400 mt-1">--</p>
-                        <p class="text-xs text-gray-500">Final Weighted Engagement Score</p>
+                        <p class="text-xs text-gray-500">Engagement Index</p>
                     </div>
                 </div>
             </div>
-            
-            <!-- Contextual Coaching Feedback -->
-            <div id="coachingFeedback" class="p-4 bg-indigo-900/50 border border-indigo-700 text-indigo-300 rounded-lg mt-4 hidden flex items-start">
-                <i class="ph-sparkle text-xl mt-1 mr-3"></i>
-                <span id="feedbackText" class="text-sm font-medium">Monitoring your session for personalized insights...</span>
-            </div>
-            
-            <!-- The simulation controls section has been removed -->
-
-            <div id="statusMessage" class="text-center p-4 bg-blue-900/50 text-blue-300 rounded-lg mt-4 hidden">
-                Simulation running...
-            </div>
-
             <div id="controls" class="mt-6 flex gap-4">
                 <button id="startButton" onclick="startTracking()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition duration-300 shadow-md flex items-center justify-center">
-                    <i class="ph-play-circle text-lg mr-2"></i> Start Tracking
+                    <i class="ph-play-circle text-lg mr-2"></i> Start Tracking Session
                 </button>
                 <button id="stopButton" onclick="stopTracking()" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-xl transition duration-300 shadow-md flex items-center justify-center" disabled>
                     <i class="ph-stop-circle text-lg mr-2"></i> Stop Session
                 </button>
             </div>
-
-            <!-- Real-Time Focus History Chart -->
-            <div class="bg-gray-800 p-6 rounded-xl shadow-lg mt-6">
-                <h2 class="text-2xl font-semibold mb-4 border-b border-gray-700 pb-2 flex items-center">
-                    <i class="ph-chart-line text-yellow-400 mr-2"></i> Real-Time Focus History
-                </h2>
-                <!-- Canvas height set here for CSS container size -->
-                <canvas id="focusChartCanvas" class="w-full" width="600" height="200"></canvas>
-            </div>
         </div>
 
-        <!-- Session Data Log (In-Memory) -->
+        <!-- Historical Data Log -->
         <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
             <h2 class="text-2xl font-semibold mb-4 border-b border-gray-700 pb-2 flex items-center">
-                <i class="ph-list-bullets text-green-400 mr-2"></i> Session Log (In-Memory)
+                <i class="ph-database text-green-400 mr-2"></i> Session Log (Firestore)
             </h2>
+            <div id="loading" class="text-gray-400 text-center py-4">Initializing Firebase...</div>
             <div id="logList" class="max-h-96 overflow-y-auto rounded-lg border border-gray-700">
-                <p class="p-4 text-gray-400 text-center">Press Start to begin logging data.</p>
+                <!-- Log items will be inserted here -->
             </div>
-            <p class="text-xs text-gray-500 mt-4">Note: The log is less detailed to prioritize the chart's responsiveness.</p>
+            <p id="userIdDisplay" class="text-xs text-gray-500 mt-4 break-words">User ID: </p>
         </div>
     </div>
 
-    <!-- Application Logic (Camera, UI, and Simulation Engine) -->
-    <script>
-        // --- Core Application State ---
-        let videoStream = null;
-        let trackingInterval = null;
-        let isTracking = false;
-        let sessionLog = []; // Stores high-frequency data
-        let simulationStartTime = null;
-        
-        // --- FIXED SIMULATION PARAMETERS (Based on previous optimal tuning) ---
-        // These values were previously controlled by the sliders.
-        const FIXED_DISTRACTION_SENSITIVITY = 0.7; 
-        const FIXED_REENGAGEMENT_EFFORT = 1.5;
-        const FAST_INTERVAL = 300; // Update rate in milliseconds
+    <!-- Firebase Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, addDoc, onSnapshot, collection, serverTimestamp, query, orderBy, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- UI Element References ---
-        const videoElement = document.getElementById('video');
-        const canvasElement = document.getElementById('overlayCanvas');
-        const ctx = canvasElement.getContext('2d');
-        const cameraStatus = document.getElementById('cameraStatus');
-        const startButton = document.getElementById('startButton');
-        const stopButton = document.getElementById('stopButton');
-        const statusMessageEl = document.getElementById('statusMessage');
-        const logListEl = document.getElementById('logList');
+        // Global Firebase variables accessible in the script tag below
+        window.db = null;
+        window.auth = null;
+        window.userId = null;
+        window.isAuthReady = false;
 
-        // Metric UI elements
-        const gazeStabilityEl = document.getElementById('gazeStability');
-        const emotionalStateEl = document.getElementById('emotionalState');
-        const postureDeviationEl = document.getElementById('postureDeviation');
-        const overallScoreEl = document.getElementById('overallScore');
-        
-        // New UI references
-        const feedbackTextEl = document.getElementById('feedbackText');
-        const coachingFeedbackEl = document.getElementById('coachingFeedback');
-        const chartCanvas = document.getElementById('focusChartCanvas');
-        const chartCtx = chartCanvas.getContext('2d');
+        const logElement = document.getElementById('logList');
+        const loadingElement = document.getElementById('loading');
+        const userIdDisplay = document.getElementById('userIdDisplay');
 
-        // --- Simulation Engine State ---
-        let simulationState = {
-            gsiBase: 90,
-            distractionEvent: false,
-            focusEvent: true
+        // Firestore paths
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const getLogCollectionPath = (uid) => {
+            // Private data storage path: /artifacts/{appId}/users/{userId}/engagement_logs
+            return `artifacts/${appId}/users/${uid}/engagement_logs`;
         };
 
-        /**
-         * Generates simulated engagement metrics with aggressive tuning for speed.
-         * The core logic is volatile to match the 300ms update rate.
-         * @returns {Object} Simulated metrics.
-         */
-        function simulateAnalysis() {
-            const distractionSensitivity = FIXED_DISTRACTION_SENSITIVITY;
-            const reengagementEffort = FIXED_REENGAGEMENT_EFFORT;
-
-            // 1. Gaze Stability Index (GSI) Drift
-            if (simulationState.focusEvent) {
-                // AGGRESSIVE RECOVERY
-                simulationState.gsiBase = Math.min(95, simulationState.gsiBase + reengagementEffort * 0.5 + Math.random() * 0.5);
-                // Condition to lose focus is harder to meet
-                if (Math.random() * reengagementEffort < 0.2) simulationState.focusEvent = false; 
+        // Initialize Firebase
+        try {
+            const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+            if (Object.keys(firebaseConfig).length === 0) {
+                loadingElement.textContent = "Firebase is not configured. Running in simulation mode without persistence.";
+                window.isAuthReady = true; // Proceed with non-persistent simulation
+                console.warn("Firebase configuration not found. Running in non-persistent mode.");
             } else {
-                // AGGRESSIVE DECAY
-                simulationState.gsiBase = Math.max(25, simulationState.gsiBase - distractionSensitivity * 0.8 - Math.random() * 0.5);
-                // Condition to get distracted is easier to meet
-                if (Math.random() * distractionSensitivity > 0.4) simulationState.distractionEvent = true; 
+                setLogLevel('error');
+                const app = initializeApp(firebaseConfig);
+                window.db = getFirestore(app);
+                window.auth = getAuth(app);
+
+                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+                // 1. Authenticate (using custom token if provided, otherwise anonymously)
+                const authenticate = async () => {
+                    if (token) {
+                        await signInWithCustomToken(window.auth, token).catch(e => {
+                            console.error("Custom token sign-in failed:", e);
+                            signInAnonymously(window.auth);
+                        });
+                    } else {
+                        await signInAnonymously(window.auth);
+                    }
+                };
+
+                // 2. Set up Auth State Listener
+                onAuthStateChanged(window.auth, (user) => {
+                    if (user) {
+                        window.userId = user.uid;
+                        userIdDisplay.textContent = `User ID: ${user.uid}`;
+                        loadingElement.textContent = "Authentication complete. Loading engagement data...";
+                        window.isAuthReady = true;
+                        // Start listening for log changes
+                        setupLogListener(user.uid);
+                    } else {
+                        window.userId = null;
+                        userIdDisplay.textContent = `User ID: Not Signed In`;
+                        loadingElement.textContent = "Authentication failed or in progress.";
+                    }
+                });
+
+                authenticate();
             }
-
-            if (simulationState.distractionEvent) {
-                // Simulate a sudden, sharp zoning out event (fast drop)
-                simulationState.gsiBase = Math.max(10, simulationState.gsiBase - 5 - Math.random() * 2);
-                // Re-engagement is checked aggressively
-                if (Math.random() * reengagementEffort > 1.2) {
-                    simulationState.distractionEvent = false;
-                    simulationState.focusEvent = true; // Snap back to focus mode
-                }
-            }
-
-            let gazeStability = Math.round(Math.min(100, simulationState.gsiBase + (Math.random() * 3 - 1.5)));
-            gazeStability = Math.max(10, gazeStability); // Min GSI 10
-
-            // 2. Emotional State & Posture Deviation
-            let emotionalState = 'Neutral/Focused';
-            let postureDeviation = 'Optimal';
-
-            if (gazeStability < 45) {
-                if (Math.random() < 0.6) { 
-                    emotionalState = 'Drowsy/Zoning Out';
-                    postureDeviation = 'Leaning Back';
-                } else if (Math.random() < 0.4) {
-                     emotionalState = 'Frustration/Confusion';
-                }
-            } else if (gazeStability > 90 && Math.random() < 0.05) { 
-                emotionalState = 'Smiling/Laughing';
-            }
-
-
-            // 3. Overall Focus Score (Weighted)
-            let overallScore = Math.round(gazeStability * 0.9 + (Math.random() * 5));
-
-            if (emotionalState === 'Drowsy/Zoning Out' || emotionalState === 'Frustration/Confusion') {
-                overallScore -= 10;
-            }
-
-            overallScore = Math.min(100, Math.max(0, overallScore));
-
-            return {
-                gazeStability: gazeStability,
-                emotionalState: emotionalState,
-                postureDeviation: postureDeviation,
-                overallScore: overallScore
-            };
-        }
-        
-        // --- Coaching Logic ---
-        let lastFeedbackTimestamp = 0;
-        const FEEDBACK_INTERVAL = 3000; // 3 seconds between checks
-
-        function getCoachingFeedback() {
-            if (!isTracking || Date.now() - lastFeedbackTimestamp < FEEDBACK_INTERVAL) {
-                return feedbackTextEl.textContent;
-            }
-            lastFeedbackTimestamp = Date.now();
-            coachingFeedbackEl.classList.add('feedback-pulse');
-            setTimeout(() => coachingFeedbackEl.classList.remove('feedback-pulse'), 1000);
-
-
-            // Check the last 15 entries (15 * 300ms = 4.5 seconds)
-            const recentLogs = sessionLog.slice(0, 15);
-            if (recentLogs.length < 5) return "Monitoring your session for personalized insights...";
-            
-            const lowScoreCount = recentLogs.filter(log => log.overallScore < 55).length;
-            const highScoreCount = recentLogs.filter(log => log.overallScore > 80).length;
-            const postureIssueCount = recentLogs.filter(log => log.postureDeviation !== 'Optimal').length;
-            const socialEmotionCount = recentLogs.filter(log => log.emotionalState.includes('Smiling') || log.emotionalState.includes('Laughing')).length;
-            
-            // Reset colors to default
-            coachingFeedbackEl.className = 'p-4 rounded-lg mt-4 flex items-start';
-            coachingFeedbackEl.classList.add('bg-indigo-900/50', 'text-indigo-300', 'border', 'border-indigo-700');
-
-
-            if (lowScoreCount >= 10) {
-                coachingFeedbackEl.classList.remove('bg-indigo-900/50', 'text-indigo-300', 'border-indigo-700');
-                coachingFeedbackEl.classList.add('bg-red-900/50', 'text-red-300', 'border-red-700');
-                return "CRITICAL ALERT: Your focus has been low for several seconds. Immediate action is needed. Maybe a quick walk?";
-            }
-
-            if (postureIssueCount >= 7) {
-                coachingFeedbackEl.classList.remove('bg-indigo-900/50', 'text-indigo-300', 'border-indigo-700');
-                coachingFeedbackEl.classList.add('bg-orange-900/50', 'text-orange-300', 'border-orange-700');
-                return "POSTURE WARNING: Maintain an upright position. Poor posture can contribute to fatigue.";
-            }
-
-            if (socialEmotionCount >= 5 && lowScoreCount < 5) {
-                 coachingFeedbackEl.classList.remove('bg-indigo-900/50', 'text-indigo-300', 'border-indigo-700');
-                 coachingFeedbackEl.classList.add('bg-yellow-900/50', 'text-yellow-300', 'border-yellow-700');
-                return "MOMENTARY DISTRACTION: High emotional activity detected. Quick non-task distraction? Re-center!";
-            }
-
-            if (highScoreCount >= 12) {
-                coachingFeedbackEl.classList.remove('bg-indigo-900/50', 'text-indigo-300', 'border-indigo-700');
-                coachingFeedbackEl.classList.add('bg-green-900/50', 'text-green-300', 'border-green-700');
-                return "EXCELLENT FOCUS: Maintaining high engagement. System performance is optimal!";
-            }
-            
-            return "Focus is stable. Minimal drift detected.";
+        } catch (e) {
+            console.error("Firebase Initialization Error:", e);
+            loadingElement.textContent = "Error initializing Firebase. Check console for details.";
+            window.isAuthReady = true; // Allow non-persistent operation if Firebase fails
         }
 
+        // 3. Setup Real-time Log Listener
+        function setupLogListener(uid) {
+            if (!window.db) return;
+            const logRef = collection(window.db, getLogCollectionPath(uid));
+            // NOTE: Using client-side sorting as orderBy can cause index issues in Firestore
+            const q = query(logRef);
 
-        // --- Chart Renderer ---
+            onSnapshot(q, (snapshot) => {
+                let logs = [];
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    logs.push({ id: doc.id, ...data });
+                });
 
-        function renderChart() {
-            const dpr = window.devicePixelRatio || 1;
-            const styleWidth = chartCanvas.offsetWidth;
-            const styleHeight = chartCanvas.offsetHeight;
-            chartCanvas.width = styleWidth * dpr;
-            chartCanvas.height = styleHeight * dpr;
-            chartCtx.scale(dpr, dpr);
-            
-            const width = styleWidth;
-            const height = styleHeight;
-            chartCtx.clearRect(0, 0, width, height);
-            
-            if (sessionLog.length < 2) return;
+                // Client-side sorting by timestamp (descending)
+                logs.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
 
-            const maxPoints = 100; 
-            const data = sessionLog.slice(0, maxPoints).map(log => log.overallScore).reverse();
-            const padding = 15;
-            const stepX = (width - 2 * padding) / Math.max(1, data.length - 1); 
-
-            // Reference Scores: 40 (Red) and 70 (Green)
-            const y40 = height - padding - (height - 2 * padding) * (40 / 100);
-            const y70 = height - padding - (height - 2 * padding) * (70 / 100);
-
-            // 1. Draw Grid Lines (Reference Scores)
-            chartCtx.lineWidth = 1;
-            chartCtx.setLineDash([5, 5]);
-
-            // Draw Critical (40)
-            chartCtx.strokeStyle = 'rgba(248, 113, 113, 0.5)'; // red-400
-            chartCtx.beginPath();
-            chartCtx.moveTo(padding, y40);
-            chartCtx.lineTo(width - padding, y40);
-            chartCtx.stroke();
-            
-            // Draw Target (70)
-            chartCtx.strokeStyle = 'rgba(74, 222, 128, 0.5)'; // green-400
-            chartCtx.beginPath();
-            chartCtx.moveTo(padding, y70);
-            chartCtx.lineTo(width - padding, y70);
-            chartCtx.stroke();
-            chartCtx.setLineDash([]); // Reset dash
-
-            // 2. Draw the Line Graph (Focus Score)
-            chartCtx.strokeStyle = '#818CF8'; // indigo-300
-            chartCtx.lineWidth = 3;
-            chartCtx.beginPath();
-
-            data.forEach((score, index) => {
-                const x = padding + index * stepX;
-                // Normalize score (0-100) to canvas height
-                const y = height - padding - (height - 2 * padding) * (score / 100);
-
-                if (index === 0) {
-                    chartCtx.moveTo(x, y);
-                } else {
-                    chartCtx.lineTo(x, y);
-                }
-
-                // Draw dots (only for low-focus points to highlight drops)
-                if (score < 40) {
-                    chartCtx.fillStyle = '#F87171'; // red-400
-                    chartCtx.beginPath();
-                    chartCtx.arc(x, y, 4, 0, Math.PI * 2);
-                    chartCtx.fill();
-                }
+                renderLogs(logs);
+            }, (error) => {
+                console.error("Error listening to log snapshot:", error);
+                loadingElement.textContent = "Error fetching data log. Check console.";
             });
-
-            chartCtx.stroke();
-
-            // 3. Draw Axis Labels 
-            chartCtx.fillStyle = '#9CA3AF';
-            chartCtx.font = '10px Inter';
-            chartCtx.textAlign = 'right';
-            chartCtx.fillText('100', padding - 2, padding + 5);
-            chartCtx.fillText('50', padding - 2, height / 2 + 5);
-            chartCtx.fillText('0', padding - 2, height - padding);
         }
 
-        // --- UI Update & Logging ---
-
-        function updateMetricsAndLog() {
-            if (!isTracking || !videoElement.srcObject) return;
-
-            const metrics = simulateAnalysis();
-            const { gazeStability, emotionalState, postureDeviation, overallScore } = metrics;
-
-            // 1. Update UI Metrics
-            gazeStabilityEl.textContent = `${gazeStability}%`;
-            gazeStabilityEl.className = `text-3xl font-bold mt-1 ${gazeStability >= 70 ? 'text-green-400' : gazeStability >= 40 ? 'text-yellow-400' : 'text-red-400'}`;
-            
-            emotionalStateEl.textContent = emotionalState;
-            emotionalStateEl.className = `text-xl font-bold mt-2 ${emotionalState === 'Neutral/Focused' ? 'text-blue-400' : emotionalState.includes('Smiling') ? 'text-yellow-400' : 'text-orange-400'}`;
-            
-            postureDeviationEl.textContent = postureDeviation;
-            postureDeviationEl.className = `text-xl font-bold mt-2 ${postureDeviation === 'Optimal' ? 'text-pink-400' : 'text-red-600'}`;
-
-            overallScoreEl.textContent = overallScore;
-            overallScoreEl.className = `text-3xl font-bold mt-1 ${overallScore >= 70 ? 'text-indigo-400' : overallScore >= 40 ? 'text-yellow-400' : 'text-red-400'}`;
-            
-            // 2. Draw Simulation Overlay
-            drawSimulation(gazeStability, emotionalState);
-
-            // 3. Log Data to Session Array (high frequency)
-            const logEntry = {
-                timestamp: Date.now(),
-                gazeStability: gazeStability,
-                emotionalState: emotionalState,
-                postureDeviation: postureDeviation,
-                overallScore: overallScore
-            };
-            sessionLog.unshift(logEntry); // Add to the front
-            sessionLog = sessionLog.slice(0, 200); 
-
-            // 4. Update Chart and Coaching
-            renderChart();
-            getCoachingFeedback();
-            
-            // Only render visual logs at a lower frequency for performance
-            if (sessionLog.length % 5 === 0) { 
-                 renderLogs();
-            }
-        }
-
-        function drawSimulation(gazeStability, emotionalState) {
-            if (videoElement.videoWidth === 0 || videoElement.videoHeight === 0) return;
-            
-            canvasElement.width = videoElement.videoWidth;
-            canvasElement.height = videoElement.videoHeight;
-            ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-
-            const colorMap = gazeStability >= 70 ? '#4ADE80' : gazeStability >= 40 ? '#FBBF24' : '#F87171';
-            
-            // Draw simulated bounding box for "Face & Pose"
-            ctx.strokeStyle = colorMap;
-            ctx.lineWidth = 4;
-            const boxSize = canvasElement.width * 0.4;
-            const boxX = (canvasElement.width / 2) - (boxSize / 2);
-            const boxY = (canvasElement.height / 2) - (boxSize / 2);
-            ctx.strokeRect(boxX, boxY, boxSize, boxSize);
-
-            // Indicator for Status
-            ctx.fillStyle = colorMap;
-            ctx.font = '24px Inter, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(emotionalState, canvasElement.width / 2, 40);
-        }
-
-        function renderLogs() {
-            const visualLog = sessionLog.filter((_, index) => index % 5 === 0);
-
-            if (visualLog.length === 0) {
-                logListEl.innerHTML = `<p class="p-4 text-gray-400 text-center">Press Start to begin logging data.</p>`;
+        // 4. Render Log Items
+        function renderLogs(logs) {
+            loadingElement.style.display = 'none';
+            if (logs.length === 0) {
+                logElement.innerHTML = `<p class="p-4 text-gray-400 text-center">No session data logged yet.</p>`;
                 return;
             }
 
-            logListEl.innerHTML = visualLog.map(log => {
-                const date = new Date(log.timestamp).toLocaleTimeString();
+            logElement.innerHTML = logs.map(log => {
+                const date = log.timestamp ? new Date(log.timestamp.seconds * 1000).toLocaleTimeString() : 'N/A';
                 const score = log.overallScore || 0;
                 const scoreColor = score >= 70 ? 'text-green-400' : score >= 40 ? 'text-yellow-400' : 'text-red-400';
 
                 return `
                     <div class="data-log-item p-3 border-b border-gray-700 last:border-b-0 flex justify-between items-center">
                         <span class="text-sm font-mono text-gray-300">${date}</span>
-                        <span class="text-xs text-gray-500">GSI: ${log.gazeStability || '--'}% | State: ${log.emotionalState || 'N/A'}</span>
+                        <span class="text-xs text-gray-500">${log.faceGaze || '--'}% | ${log.eyeStatus || 'N/A'}</span>
                         <span class="font-bold text-lg ${scoreColor}">${score}%</span>
                     </div>
                 `;
             }).join('');
         }
-        
-        // --- Session Control ---
+    </script>
+
+    <!-- Application Logic -->
+    <script>
+        // Global state for the application
+        let videoStream = null;
+        let trackingInterval = null;
+        let isTracking = false;
+        let sessionStartTime = null;
+
+        const videoElement = document.getElementById('video');
+        const canvasElement = document.getElementById('overlayCanvas');
+        const ctx = canvasElement.getContext('2d');
+        const cameraStatus = document.getElementById('cameraStatus');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+
+        // Metric UI elements
+        const faceGazeEl = document.getElementById('faceGaze');
+        const eyeStatusEl = document.getElementById('eyeStatus');
+        const handMovementEl = document.getElementById('handMovement');
+        const overallScoreEl = document.getElementById('overallScore');
+
+        // Utility to handle exponential backoff for retries
+        const maxRetries = 5;
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // --- Core Tracking Functions (Simulated) ---
+
+        function drawSimulation(faceScore, eyeStat, handStat) {
+            // Adjust canvas size to match video size
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            // SIMULATION: Draw bounding box for "detected face"
+            ctx.strokeStyle = faceScore >= 70 ? '#4ADE80' : '#FBBF24'; // Green if focused, Yellow otherwise
+            ctx.lineWidth = 4;
+            // Draw a square that moves slightly to simulate real tracking jitter
+            const jitterX = Math.sin(Date.now() / 500) * 10;
+            const jitterY = Math.cos(Date.now() / 600) * 10;
+            const boxSize = canvasElement.width * 0.4;
+            const boxX = (canvasElement.width / 2) - (boxSize / 2) + jitterX;
+            const boxY = (canvasElement.height / 2) - (boxSize / 2) + jitterY;
+            ctx.strokeRect(boxX, boxY, boxSize, boxSize);
+
+            // SIMULATION: Draw status text
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '24px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('Tracking Active', canvasElement.width / 2, 40);
+
+            // SIMULATION: Draw focus indicator (dot)
+            ctx.fillStyle = faceScore >= 70 ? '#10B981' : '#F59E0B';
+            ctx.beginPath();
+            ctx.arc(boxX + boxSize / 2, boxY + 30, 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillText(eyeStat, boxX + boxSize / 2, boxY + boxSize + 40);
+        }
+
+        function generateSimulatedMetrics() {
+            // 1. Face Gaze Score (Focus Level)
+            let faceGaze = Math.floor(Math.random() * 100);
+            if (Date.now() - sessionStartTime > 15000) { // After 15 seconds, introduce more fluctuation
+                faceGaze = Math.floor(Math.random() * 10 + 75) // Usually high focus
+                if (Math.random() < 0.2) { // 20% chance of distraction
+                    faceGaze = Math.floor(Math.random() * 30 + 10);
+                }
+            }
+
+            // 2. Eye Movement Status
+            let eyeOptions = ['Reading', 'Looking Away', 'Blink Rate Normal'];
+            let eyeStatus = 'Reading';
+            if (faceGaze < 40) {
+                eyeStatus = eyeOptions[Math.floor(Math.random() * 3)];
+            } else {
+                eyeStatus = 'Reading';
+            }
+
+            // 3. Hand Movement (Distraction)
+            let handOptions = ['Idle', 'Active (Typing)', 'Excessive'];
+            let handMovement = 'Idle';
+            if (Math.random() < 0.1) {
+                handMovement = handOptions[Math.floor(Math.random() * 3)];
+            }
+
+            // 4. Overall Focus Index (Formula simulation)
+            let overallScore = Math.min(100, Math.max(0, Math.floor(
+                (faceGaze * 0.6) +
+                (eyeStatus === 'Reading' ? 30 : eyeStatus === 'Looking Away' ? -10 : 0) +
+                (handMovement === 'Excessive' ? -10 : 0) +
+                Math.random() * 5
+            )));
+
+            return { faceGaze, eyeStatus, handMovement, overallScore };
+        }
+
+        async function updateMetricsAndLog() {
+            if (!isTracking) return;
+
+            const metrics = generateSimulatedMetrics();
+            const { faceGaze, eyeStatus, handMovement, overallScore } = metrics;
+
+            // Update UI
+            faceGazeEl.textContent = `${faceGaze}%`;
+            faceGazeEl.className = `text-3xl font-bold mt-1 ${faceGaze >= 70 ? 'text-green-400' : faceGaze >= 40 ? 'text-yellow-400' : 'text-red-400'}`;
+            eyeStatusEl.textContent = eyeStatus;
+            handMovementEl.textContent = handMovement;
+            overallScoreEl.textContent = overallScore;
+            overallScoreEl.className = `text-3xl font-bold mt-1 ${overallScore >= 70 ? 'text-indigo-400' : overallScore >= 40 ? 'text-yellow-400' : 'text-red-400'}`;
+
+            // Update Canvas Simulation
+            drawSimulation(faceGaze, eyeStatus, handMovement);
+
+            // Log Data to Firestore (Every 5 seconds, only if authenticated)
+            if (window.db && window.userId && window.isAuthReady && Date.now() - sessionStartTime > 1000) {
+                const logData = {
+                    timestamp: firebase.serverTimestamp(), // Not available in this scope, but used in the module
+                    faceGaze: faceGaze,
+                    eyeStatus: eyeStatus,
+                    handMovement: handMovement,
+                    overallScore: overallScore
+                };
+                saveLogToFirestore(logData);
+            }
+        }
+
+        function getLogCollectionPath(uid) {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            return `artifacts/${appId}/users/${uid}/engagement_logs`;
+        }
+
+        async function saveLogToFirestore(data) {
+            if (!window.db || !window.userId) {
+                console.warn("Firestore not ready. Cannot save data.");
+                return;
+            }
+
+            let attempts = 0;
+            while (attempts < maxRetries) {
+                try {
+                    // We must import Firestore dependencies within the module scope for them to be available here.
+                    // Since we can't easily re-import here, we rely on the object structure from the module script above.
+                    // We'll use a placeholder for serverTimestamp, since it's not available in this scope.
+                    const logData = { ...data, timestamp: new Date() };
+
+                    const docRef = await window.addDoc(window.collection(window.db, getLogCollectionPath(window.userId)), logData);
+                    // console.log("Document written with ID: ", docRef.id);
+                    return;
+                } catch (e) {
+                    if (e.code === 'unavailable' || e.code === 'internal') {
+                        attempts++;
+                        console.warn(`Firestore save failed (Attempt ${attempts}). Retrying...`);
+                        await sleep(Math.pow(2, attempts) * 500); // Exponential backoff
+                    } else {
+                        console.error("Error adding document:", e);
+                        break;
+                    }
+                }
+            }
+        }
+
+
+        // --- Camera Control ---
+
         async function startCamera() {
             try {
+                // Request camera access
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 videoElement.srcObject = stream;
                 videoStream = stream;
@@ -505,7 +425,11 @@
                 cameraStatus.classList.add('bg-green-600');
                 videoElement.play();
 
+                // Ensure canvas is correctly sized after video starts
                 videoElement.onloadedmetadata = () => {
+                    canvasElement.width = videoElement.videoWidth;
+                    canvasElement.height = videoElement.videoHeight;
+                    // Start the tracking simulation loop
                     startTrackingLoop();
                 };
 
@@ -514,8 +438,8 @@
                 cameraStatus.textContent = 'Camera Denied/Error';
                 cameraStatus.classList.remove('bg-green-600');
                 cameraStatus.classList.add('bg-red-600');
-                statusMessageEl.textContent = "FATAL: Camera access required to start tracking.";
-                statusMessageEl.classList.remove('hidden');
+                // Even if camera fails, we can start the simulation loop on a placeholder
+                startTrackingLoop();
             }
         }
 
@@ -526,68 +450,60 @@
                 cameraStatus.textContent = 'Camera Off';
                 cameraStatus.classList.remove('bg-green-600');
                 cameraStatus.classList.add('bg-red-600');
-                ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-                chartCtx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+                ctx.clearRect(0, 0, canvasElement.width, canvasElement.height); // Clear simulation
             }
         }
+
+        // --- Session Control ---
 
         window.startTracking = function() {
             if (isTracking) return;
             isTracking = true;
-            simulationStartTime = Date.now();
-            sessionLog = []; 
-            renderLogs();
-            
-            renderChart();
-
+            sessionStartTime = Date.now();
             startButton.disabled = true;
             stopButton.disabled = false;
             startButton.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
             startButton.classList.add('bg-gray-700', 'cursor-not-allowed');
-            statusMessageEl.classList.remove('hidden');
-            statusMessageEl.textContent = "Initiating camera and simulation...";
 
-            startCamera();
+            startCamera(); // Starts camera and then the loop on success
+            
+            // If camera fails, ensure the loop starts anyway for metric simulation
+            if (!videoStream) {
+                 startTrackingLoop();
+            }
         }
 
         window.stopTracking = function() {
             if (!isTracking) return;
             isTracking = false;
+            sessionStartTime = null;
             stopCamera();
             if (trackingInterval) {
                 clearInterval(trackingInterval);
                 trackingInterval = null;
             }
-            statusMessageEl.classList.add('hidden');
-            coachingFeedbackEl.classList.add('hidden');
 
             startButton.disabled = false;
             stopButton.disabled = true;
             startButton.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
             startButton.classList.remove('bg-gray-700', 'cursor-not-allowed');
 
-            // Reset UI metrics
-            gazeStabilityEl.textContent = '--%';
-            emotionalStateEl.textContent = 'N/A';
-            postureDeviationEl.textContent = 'N/A';
+            // Clear real-time metrics display
+            faceGazeEl.textContent = '--%';
+            eyeStatusEl.textContent = 'N/A';
+            handMovementEl.textContent = 'N/A';
             overallScoreEl.textContent = '--';
             overallScoreEl.className = 'text-3xl font-bold mt-1 text-indigo-400';
-            
-            renderChart();
-            logListEl.innerHTML = `<p class="p-4 text-gray-400 text-center">Press Start to begin logging data.</p>`;
         }
         
         function startTrackingLoop() {
              if (trackingInterval) clearInterval(trackingInterval);
-             trackingInterval = setInterval(updateMetricsAndLog, FAST_INTERVAL);
-             updateMetricsAndLog(); 
-             statusMessageEl.textContent = "Simulation running. Monitoring cognitive state every 300ms.";
+             // Update metrics and log every 5 seconds (5000ms)
+             trackingInterval = setInterval(updateMetricsAndLog, 5000);
         }
 
-        window.onload = function() {
-            stopButton.disabled = true;
-            renderChart(); 
-        }
+        // Initialize state
+        stopButton.disabled = true;
     </script>
 </body>
 </html>
