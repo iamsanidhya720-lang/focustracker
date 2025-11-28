@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Focus Tracker Simulation (Fixed Parameters)</title>
+    <title>Focus Tracker Simulation (Functional)</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load Inter font -->
@@ -63,6 +63,19 @@
             max-height: 400px;
             overflow-y: auto;
         }
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(31, 41, 55, 0.9); /* gray-800 semi-transparent */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            border-radius: 0.75rem;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100 p-4 lg:p-10">
@@ -70,6 +83,7 @@
     <header class="mb-8">
         <h1 class="text-4xl font-extrabold text-indigo-400 tracking-tight">Cognitive Focus Dashboard</h1>
         <p class="text-gray-400 mt-2">Simulated real-time coaching for attention and presence during work.</p>
+        <div id="userIdDisplay" class="text-xs text-gray-500 mt-1"></div>
     </header>
 
     <div class="dashboard-grid">
@@ -77,6 +91,12 @@
         <div>
             <!-- Video Feed and Status -->
             <div class="video-container mb-6">
+                <div id="appLoading" class="loading-overlay">
+                    <p class="text-lg font-medium text-indigo-400 flex items-center">
+                        <i class="ph ph-spinner-gap animate-spin mr-2"></i> Initializing Data...
+                    </p>
+                </div>
+
                 <video id="webcamFeed" autoplay playsinline></video>
                 <div id="videoPlaceholder" class="p-6 text-center">
                     <i class="ph ph-video-camera text-5xl mb-3 text-gray-500"></i>
@@ -87,10 +107,10 @@
 
             <!-- Controls -->
             <div class="flex space-x-4 mb-6">
-                <button id="startButton" class="px-6 py-3 rounded-xl font-semibold transition bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-700 disabled:cursor-not-allowed">
+                <button id="startButton" class="px-6 py-3 rounded-xl font-semibold transition bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-700 disabled:cursor-not-allowed" disabled>
                     <i class="ph ph-play-circle mr-2"></i> Start Tracking
                 </button>
-                <button id="stopButton" class="px-6 py-3 rounded-xl font-semibold transition bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed">
+                <button id="stopButton" class="px-6 py-3 rounded-xl font-semibold transition bg-red-600 hover:bg-red-700 disabled:bg-gray-700 disabled:cursor-not-allowed" disabled>
                     <i class="ph ph-stop-circle mr-2"></i> Stop Tracking
                 </button>
             </div>
@@ -132,9 +152,9 @@
 
             <!-- Activity Log -->
             <div class="metric-card">
-                <h2 class="text-lg font-semibold mb-3 text-gray-200">Activity Log</h2>
+                <h2 class="text-lg font-semibold mb-3 text-gray-200">Activity Log (Synced)</h2>
                 <div id="logList" class="log-scroll-area">
-                    <p class="p-4 text-gray-400 text-center">Press Start to begin logging data.</p>
+                    <p class="p-4 text-gray-400 text-center">Loading past sessions...</p>
                 </div>
             </div>
         </div>
@@ -143,20 +163,47 @@
     <!-- Load Chart.js for visualization -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-    <script>
-        // --- Configuration & Elements ---
+    <!-- Firebase Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+
+        setLogLevel('Debug'); // Enable debug logging for Firebase
+
+        // Global Firebase variables for use across the script
+        let app;
+        let db;
+        let auth;
+        let currentUserId = null;
+        let focusDataDocRef = null;
+
+        // Configuration variables provided by the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Data Storage Path: Private data for the current user
+        function getFocusDataPath(uid) {
+            return `artifacts/${appId}/users/${uid}/focus_tracker/session_data`;
+        }
+
+        // --- Core Application Logic (Now accessible globally) ---
         const FAST_INTERVAL = 300; // ms for simulation updates
         const SLOW_INTERVAL = 2000; // ms for coaching feedback
 
         const webcamFeed = document.getElementById('webcamFeed');
         const videoPlaceholder = document.getElementById('videoPlaceholder');
         const cameraErrorMsg = document.getElementById('cameraErrorMsg');
+        const appLoadingEl = document.getElementById('appLoading');
 
         const startButton = document.getElementById('startButton');
         const stopButton = document.getElementById('stopButton');
         const statusMessageEl = document.getElementById('statusMessage');
         const coachingFeedbackEl = document.getElementById('coachingFeedback');
         const logListEl = document.getElementById('logList');
+        const userIdDisplayEl = document.getElementById('userIdDisplay');
 
         const gazeStabilityEl = document.getElementById('gazeStability');
         const emotionalStateEl = document.getElementById('emotionalState');
@@ -167,17 +214,12 @@
         let isTracking = false;
         let trackingInterval = null;
         let coachingInterval = null;
-        let dataLog = [];
+        let dataLog = []; // Local cache of historical data
         let focusChart = null;
         let webcamStream = null;
 
-        // --- Utility Functions ---
+        // --- Utility Functions (Same as previous version) ---
 
-        /**
-         * Converts a numerical score (0-100) to a qualitative state.
-         * @param {number} score 
-         * @returns {string}
-         */
         function getQualitativeState(score) {
             if (score > 80) return 'Highly Focused';
             if (score > 60) return 'Focused';
@@ -185,22 +227,12 @@
             return 'Severely Distracted';
         }
 
-        /**
-         * Converts a numerical score to a Tailwind color class.
-         * @param {number} score 
-         * @returns {string}
-         */
         function scoreToColor(score) {
             if (score > 75) return 'text-green-400';
             if (score > 50) return 'text-yellow-400';
             return 'text-red-400';
         }
 
-        /**
-         * Converts a numerical score to a coaching tip.
-         * @param {number} score 
-         * @returns {string}
-         */
         function getCoachingTip(score) {
             if (score > 85) return 'Great job! Maintain your current focus level.';
             if (score > 65) return 'You are doing well, but try to minimize minor distractions.';
@@ -208,11 +240,7 @@
             return 'High distraction detected. Please re-engage or change tasks.';
         }
 
-        /**
-         * Simulates fetching random metric data.
-         */
         function getSimulatedMetrics() {
-            // Introduce a bias towards "focused" but with random spikes/drops
             const baseGaze = Math.max(50, 70 + (Math.random() - 0.5) * 40);
             const basePosture = Math.min(100, 80 + (Math.random() - 0.5) * 30);
             
@@ -234,9 +262,6 @@
 
         // --- Chart Functions ---
 
-        /**
-         * Initializes or re-renders the Chart.js focus trend chart.
-         */
         function renderChart() {
             const ctx = document.getElementById('focusChart').getContext('2d');
             
@@ -254,7 +279,7 @@
                     datasets: [{
                         label: 'Overall Focus Score',
                         data: dataPoints,
-                        borderColor: '#818cf8', // indigo-400
+                        borderColor: '#818cf8',
                         backgroundColor: 'rgba(129, 140, 248, 0.1)',
                         borderWidth: 2,
                         tension: 0.4,
@@ -265,104 +290,134 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        x: {
-                            display: false,
-                        },
+                        x: { display: false },
                         y: {
-                            min: 0,
-                            max: 100,
-                            ticks: {
-                                color: '#9ca3af' // gray-400
-                            },
-                            grid: {
-                                color: '#374151' // gray-700
-                            }
+                            min: 0, max: 100,
+                            ticks: { color: '#9ca3af' },
+                            grid: { color: '#374151' }
                         }
                     },
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    }
+                    plugins: { legend: { display: false } }
                 }
             });
         }
 
-        /**
-         * Updates the chart with new data points.
-         */
-        function updateChart() {
-            if (focusChart && dataLog.length > 0) {
-                const newIndex = dataLog.length - 1;
-                const newLabel = newIndex % 10 === 0 ? `T+${newIndex * FAST_INTERVAL/1000}s` : '';
-                
-                // Add new data point
-                focusChart.data.labels.push(newLabel);
-                focusChart.data.datasets[0].data.push(dataLog[newIndex].overall);
-
-                // Keep only the last 100 points
-                if (focusChart.data.labels.length > 100) {
-                    focusChart.data.labels.shift();
-                    focusChart.data.datasets[0].data.shift();
-                }
-
-                focusChart.update('none'); // Use 'none' for smooth update
-            }
+        function updateChart(newDataLog) {
+            // Use the updated dataLog provided by the real-time listener
+            dataLog = newDataLog;
+            renderChart();
         }
 
-        // --- Core Tracking Logic ---
+        function updateLogList(newDataLog) {
+            // Rebuild the log list based on the complete data log
+            logListEl.innerHTML = '';
+            if (newDataLog.length === 0) {
+                logListEl.innerHTML = `<p class="p-4 text-gray-400 text-center">Press Start to begin logging data.</p>`;
+                return;
+            }
+
+            newDataLog.slice().reverse().forEach((data, index) => { // Reverse for latest first
+                const logId = newDataLog.length - index;
+                const state = getQualitativeState(data.overall);
+                const colorClass = scoreToColor(data.overall);
+                
+                const newLogEntry = document.createElement('div');
+                newLogEntry.className = `log-entry py-2 text-sm flex justify-between items-center`;
+                newLogEntry.innerHTML = `
+                    <span class="text-gray-400">${data.timestamp} #${logId}</span>
+                    <span class="font-medium ${colorClass}">${state} (${data.overall})</span>
+                `;
+                logListEl.appendChild(newLogEntry);
+            });
+        }
+        
+        /**
+         * Real-time listener for Firestore focus data.
+         */
+        function setupRealtimeListener() {
+             if (!focusDataDocRef) {
+                 console.error("Firestore document reference is not set.");
+                 return;
+             }
+
+             // Sets up a listener for the entire document
+             onSnapshot(focusDataDocRef, (docSnap) => {
+                 if (docSnap.exists()) {
+                     const data = docSnap.data();
+                     const logs = data.logs || [];
+                     
+                     // Use the latest data from Firestore to update UI
+                     if (logs.length > 0) {
+                         const latest = logs[logs.length - 1];
+                         
+                         // Update Metrics
+                         gazeStabilityEl.textContent = `${latest.gaze}%`;
+                         gazeStabilityEl.className = `text-3xl font-bold mt-1 ${scoreToColor(latest.gaze)}`;
+                         emotionalStateEl.textContent = latest.emotionalState;
+                         emotionalStateEl.className = 'text-3xl font-bold mt-1 text-blue-400';
+                         postureDeviationEl.textContent = `${latest.posture}%`;
+                         postureDeviationEl.className = `text-3xl font-bold mt-1 ${scoreToColor(latest.posture)}`;
+                         overallScoreEl.textContent = latest.overall;
+                         overallScoreEl.className = `text-3xl font-bold mt-1 ${scoreToColor(latest.overall)}`;
+                     }
+
+                     // Update Chart and Log List with the historical data
+                     updateChart(logs);
+                     updateLogList(logs);
+
+                 } else {
+                     // Document doesn't exist, initialize local log
+                     updateChart([]);
+                     updateLogList([]);
+                     console.log("No existing focus data found. Starting fresh.");
+                 }
+             }, (error) => {
+                 console.error("Error setting up real-time listener:", error);
+                 statusMessageEl.textContent = `Error syncing data: ${error.message}`;
+                 statusMessageEl.classList.remove('hidden');
+             });
+        }
+
+
+        // --- Core Tracking Logic (Modified to use Firestore) ---
 
         /**
-         * Updates all metrics, UI, logs data, and updates the chart.
+         * Simulates a new metric reading and pushes it to Firestore.
          */
-        function updateMetricsAndLog() {
-            if (!isTracking) return;
+        async function updateMetricsAndLog() {
+            if (!isTracking || !focusDataDocRef) return;
 
             const metrics = getSimulatedMetrics();
             const timestamp = new Date().toLocaleTimeString();
-            const logId = dataLog.length + 1;
-
-            // 1. Update UI Metrics
-            gazeStabilityEl.textContent = `${metrics.gaze}%`;
-            gazeStabilityEl.className = `text-3xl font-bold mt-1 ${scoreToColor(metrics.gaze)}`;
             
-            emotionalStateEl.textContent = metrics.emotionalState;
-            emotionalStateEl.className = 'text-3xl font-bold mt-1 text-blue-400';
+            const newLogEntry = {
+                timestamp,
+                overall: metrics.overall,
+                gaze: metrics.gaze,
+                posture: metrics.posture,
+                emotionalState: metrics.emotionalState,
+            };
+
+            // Use the local cache (dataLog) to append and update Firestore
+            dataLog.push(newLogEntry);
             
-            postureDeviationEl.textContent = `${metrics.posture}%`;
-            postureDeviationEl.className = `text-3xl font-bold mt-1 ${scoreToColor(metrics.posture)}`;
+            try {
+                // Save the entire logs array back to Firestore
+                await setDoc(focusDataDocRef, { logs: dataLog });
+                // The onSnapshot listener will automatically handle UI updates.
 
-            overallScoreEl.textContent = metrics.overall;
-            overallScoreEl.className = `text-3xl font-bold mt-1 ${scoreToColor(metrics.overall)}`;
-
-            // 2. Log Data
-            dataLog.push({ timestamp, overall: metrics.overall });
-
-            // 3. Update Log List
-            const state = getQualitativeState(metrics.overall);
-            const newLogEntry = document.createElement('div');
-            newLogEntry.className = `log-entry py-2 text-sm flex justify-between items-center`;
-            newLogEntry.innerHTML = `
-                <span class="text-gray-400">${timestamp} #${logId}</span>
-                <span class="font-medium ${scoreToColor(metrics.overall)}">${state} (${metrics.overall})</span>
-            `;
-            // Add to top of the log list
-            if (logListEl.firstChild && logListEl.firstChild.tagName !== 'P') {
-                 logListEl.insertBefore(newLogEntry, logListEl.firstChild);
-            } else {
-                 logListEl.innerHTML = '';
-                 logListEl.appendChild(newLogEntry);
+            } catch (error) {
+                console.error("Failed to save metrics to Firestore:", error);
+                // Stop tracking on critical error
+                stopTracking(); 
+                statusMessageEl.textContent = `CRITICAL ERROR: Data sync failed. ${error.message}`;
+                statusMessageEl.classList.remove('hidden');
             }
-           
-            // 4. Update Chart
-            updateChart();
         }
 
-        /**
-         * Provides periodic coaching feedback based on the latest overall score.
-         */
         function provideCoachingFeedback() {
             if (!isTracking || dataLog.length === 0) return;
+            // Use the last element of the locally updated log
             const latestScore = dataLog[dataLog.length - 1].overall;
             const tip = getCoachingTip(latestScore);
             
@@ -371,170 +426,181 @@
         }
 
 
-        // --- Webcam Functions ---
-
-        /**
-         * Handles webcam initialization errors and updates the UI to inform the user.
-         * @param {Error} error 
-         */
+        // --- Webcam Functions and Controls (Same logic, slightly refactored) ---
+        
         function handleWebcamError(error) {
             console.error('Webcam access error:', error);
             videoPlaceholder.style.display = 'flex';
             cameraErrorMsg.textContent = `Error: ${error.name}. Please ensure your camera is not in use and grant permission.`;
             cameraErrorMsg.classList.add('text-red-400');
             
-            // Re-enable start button for retry
             startButton.disabled = false;
             startButton.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
             startButton.classList.remove('bg-gray-700', 'cursor-not-allowed');
 
-            stopTracking();
+            stopTracking(false); // Stop tracking without releasing UI locks if app is loading
         }
 
-        /**
-         * Requests and sets up the webcam feed.
-         * @returns {Promise<void>}
-         */
         async function setupWebcam() {
-            if (webcamStream) {
-                // Already running
-                return;
-            }
+            if (webcamStream) return;
 
             try {
-                // Request camera stream
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 webcamStream = stream;
                 webcamFeed.srcObject = stream;
                 await webcamFeed.play();
-                
-                // Hide placeholder and show video
                 videoPlaceholder.style.display = 'none';
-
             } catch (error) {
                 handleWebcamError(error);
-                throw error; // Propagate error to startTracking
+                throw error;
             }
         }
 
-        /**
-         * Stops the webcam stream and releases the hardware.
-         */
         function stopWebcam() {
             if (webcamStream) {
                 webcamStream.getTracks().forEach(track => track.stop());
                 webcamStream = null;
                 webcamFeed.srcObject = null;
             }
-            // Show placeholder
             videoPlaceholder.style.display = 'flex';
             cameraErrorMsg.textContent = "Tracking stopped. Press 'Start Tracking' to restart.";
             cameraErrorMsg.classList.remove('text-red-400');
         }
 
 
-        // --- Control Functions ---
-
-        /**
-         * Initiates the tracking simulation.
-         */
         async function startTracking() {
-            if (isTracking) return;
+            if (isTracking || !currentUserId) return;
 
-            // Disable start button, enable stop button
+            // UI Lock
             startButton.disabled = true;
-            stopButton.disabled = true; // Wait for webcam to confirm success
+            stopButton.disabled = true;
             startButton.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
             startButton.classList.add('bg-gray-700', 'cursor-not-allowed');
 
             statusMessageEl.textContent = "Requesting camera permission...";
             statusMessageEl.classList.remove('hidden');
 
-
             try {
                 await setupWebcam();
                 
                 // Camera setup successful, now start simulation
                 isTracking = true;
+                
+                // Clear the local log before starting a new session (the real-time listener will handle fetching past logs)
                 dataLog = [];
-                logListEl.innerHTML = '';
-                renderChart();
 
                 // Set up intervals
                 if (trackingInterval) clearInterval(trackingInterval);
                 trackingInterval = setInterval(updateMetricsAndLog, FAST_INTERVAL);
-                updateMetricsAndLog(); // Initial run immediately
+                
+                // Immediately save the first metric
+                await updateMetricsAndLog(); 
 
                 if (coachingInterval) clearInterval(coachingInterval);
                 coachingInterval = setInterval(provideCoachingFeedback, SLOW_INTERVAL);
                 
-                statusMessageEl.textContent = "Simulation running. Monitoring cognitive state.";
+                statusMessageEl.textContent = "Simulation running. Data is syncing in real-time.";
+                
+                // UI Unlock
                 stopButton.disabled = false;
                 stopButton.classList.add('bg-red-600', 'hover:bg-red-700');
                 stopButton.classList.remove('bg-gray-700', 'cursor-not-allowed');
 
             } catch (e) {
-                // Error handled in handleWebcamError, UI reset there.
                 console.error("Failed to start tracking:", e);
-                // The handleWebcamError already manages the button state and message
+                // handleWebcamError cleans up button state
             }
         }
 
-        /**
-         * Stops the tracking simulation.
-         */
         function stopTracking() {
             isTracking = false;
 
             // Clear intervals
-            if (trackingInterval) {
-                clearInterval(trackingInterval);
-                trackingInterval = null;
-            }
-            if (coachingInterval) {
-                clearInterval(coachingInterval);
-                coachingInterval = null;
-            }
+            if (trackingInterval) clearInterval(trackingInterval);
+            trackingInterval = null;
+            if (coachingInterval) clearInterval(coachingInterval);
+            coachingInterval = null;
             
-            stopWebcam(); // Release the camera
+            stopWebcam();
 
             // Reset UI state
-            statusMessageEl.textContent = "Tracking stopped.";
+            statusMessageEl.textContent = "Tracking stopped. Data saved.";
             coachingFeedbackEl.classList.add('hidden');
 
+            // UI Unlock
             startButton.disabled = false;
             stopButton.disabled = true;
             startButton.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
             startButton.classList.remove('bg-gray-700', 'cursor-not-allowed');
             stopButton.classList.remove('bg-red-600', 'hover:bg-red-700');
             stopButton.classList.add('bg-gray-700', 'cursor-not-allowed');
+        }
 
+        // --- Firebase & App Initialization ---
 
-            // Reset UI metrics
-            gazeStabilityEl.textContent = '--%';
-            gazeStabilityEl.className = 'text-3xl font-bold mt-1 text-green-400';
-            emotionalStateEl.textContent = 'N/A';
-            postureDeviationEl.textContent = 'N/A';
-            overallScoreEl.textContent = '--';
-            overallScoreEl.className = 'text-3xl font-bold mt-1 text-indigo-400';
+        async function authenticateAndInit() {
+            try {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                // 1. Authenticate user
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // 2. Wait for auth state change
+                return new Promise((resolve) => {
+                    const unsubscribe = onAuthStateChanged(auth, (user) => {
+                        if (user) {
+                            currentUserId = user.uid;
+                            userIdDisplayEl.textContent = `User ID: ${currentUserId}`;
+                            focusDataDocRef = doc(db, getFocusDataPath(currentUserId));
+                            resolve();
+                        } else {
+                            console.error("Authentication failed: User is null.");
+                            currentUserId = crypto.randomUUID(); // Fallback ID
+                            userIdDisplayEl.textContent = `User ID: ${currentUserId} (Anonymous - Data not saved)`;
+                            // Still proceed, but focusDataDocRef will be null, and save functions will fail gracefully.
+                            resolve(); 
+                        }
+                        unsubscribe(); 
+                    });
+                });
+            } catch (error) {
+                console.error("Firebase authentication or initialization failed:", error);
+                appLoadingEl.innerHTML = `<p class="text-lg font-medium text-red-400">Error: Failed to load application. See console for details.</p>`;
+                return false;
+            }
+        }
+
+        async function initApp() {
+            const success = await authenticateAndInit();
+            if (!success) return;
+
+            // 3. Setup event listeners
+            startButton.addEventListener('click', startTracking);
+            stopButton.addEventListener('click', stopTracking);
             
-            // Re-render chart to show final data
-            renderChart(); 
+            // 4. Setup real-time data listener (this will load history)
+            if (focusDataDocRef) {
+                setupRealtimeListener();
+            } else {
+                // If authentication failed, ensure log is empty and chart is initialized
+                updateChart([]);
+                updateLogList([]);
+            }
+
+            // 5. Final UI setup
+            startButton.disabled = false;
+            appLoadingEl.style.display = 'none'; // Hide loading screen
         }
 
-        // --- Event Listeners and Initialization ---
+        // --- Start Application ---
+        window.onload = initApp;
 
-        startButton.addEventListener('click', startTracking);
-        stopButton.addEventListener('click', stopTracking);
-
-        window.onload = function() {
-            // Initial UI setup
-            stopButton.disabled = true;
-            stopButton.classList.remove('bg-red-600', 'hover:bg-red-700');
-            stopButton.classList.add('bg-gray-700', 'cursor-not-allowed');
-            renderChart(); 
-            // Do NOT call setupWebcam here; it requires a user action (click) for a smooth permission flow.
-        }
     </script>
 </body>
 </html>
