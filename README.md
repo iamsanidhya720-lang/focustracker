@@ -1,4 +1,4 @@
-⭐ AttentionAI – Complete Technical Architecture & Stack Breakdown
+⭐ AttentionAI – Complete Technical Architecture & Stack Breakdown.
 1. Backend Technologies
 Programming Language
 
